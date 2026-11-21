@@ -96,3 +96,28 @@ between perennial protection and annual yield, so decision makers see the whole 
 - No rainfall forecast skill is modelled beyond perfect vs persistence.
 - No sensor noise; no pump breakdowns; constant pump head.
 - One location, one season, one hypothetical farm: not generalisable.
+
+## Trade-off: irreversibility weight (kappa_perennial)
+
+Optimiser with persistence forecasts; only the perennial severe-stress multiplier changes
+(annual multiplier stays 1). Each row is one full-season closed-loop simulation.
+
+|   kappa_perennial |   water_m3 |   total_stress_mm_h |   olive_severe_hours |   olive_eta_over_etc |   tomato_relative_yield |   potato_relative_yield |
+|------------------:|-----------:|--------------------:|---------------------:|---------------------:|------------------------:|------------------------:|
+|                 1 |      15566 |              162654 |                  542 |                0.768 |                   0.296 |                   0.691 |
+|                 2 |      15574 |              163852 |                   55 |                0.788 |                   0.257 |                   0.697 |
+|                 5 |      15506 |              165898 |                   26 |                0.795 |                   0.237 |                   0.69  |
+|                10 |      15530 |              165601 |                   13 |                0.797 |                   0.236 |                   0.69  |
+
+Choosing a point on this curve is a value judgement about protecting long-lived trees versus
+this season's annual harvest. It belongs to the farmer or water authority, not to QATRA.
+
+**Reading the curve (written after reviewing the results).** Most of the perennial protection
+comes from the first step: raising the multiplier from 1 to 2 cuts olive severe-stress hours by
+90 % (542 → 55) for about 0.04 of tomato relative yield (0.296 → 0.257). From 2 to 5 the
+remaining 55 hours halve for another 0.02; beyond 5 almost nothing changes. Even at 1 the
+optimiser equals the threshold rule on tomato yield (0.296 vs 0.292) while leaving the olive
+grove about half the severe hours (542 vs 1,071), from better use of solar hours and the pump.
+A multiplier near 2 is therefore the knee of this curve and a defensible default to propose;
+it remains a value judgement for the farmer or water authority, and this is one simulated
+farm and season.

@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 import json
 import threading
+import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -51,6 +52,22 @@ class NexGddpClient:
     def close(self) -> None:
         self._client.close()
 
+    def _get(self, url: str, params: dict, attempts: int = 4) -> httpx.Response:
+        """GET with retries on dropped connections, timeouts, 429 and 5xx (backoff 2, 4, 8 s)."""
+        delay = 2.0
+        for i in range(attempts):
+            try:
+                r = self._client.get(url, params=params)
+                if r.status_code != 429 and r.status_code < 500:
+                    return r
+                err = f"HTTP {r.status_code}"
+            except httpx.TransportError as exc:
+                err = f"{type(exc).__name__}: {exc}"
+            if i < attempts - 1:
+                time.sleep(delay)
+                delay *= 2
+        raise NexGddpError(f"request failed after {attempts} attempts ({err}): {url}")
+
     def _cache_path(self, model, scenario, var, year, lat, lon) -> Path:
         return self.cache_dir / f"{model}_{scenario}_{var}_{year}_{lat:.3f}_{lon:.3f}.json"
 
@@ -80,7 +97,7 @@ class NexGddpClient:
         suffixes = [self._suffix[key]] if key in self._suffix else list(VERSION_SUFFIXES)
         last = None
         for sfx in suffixes:
-            r = self._client.get(self._url(model, scenario, member, var, year, sfx), params=params)
+            r = self._get(self._url(model, scenario, member, var, year, sfx), params)
             if r.status_code == 200:
                 with self._lock:
                     self._suffix[key] = sfx
