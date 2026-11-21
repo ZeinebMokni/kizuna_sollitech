@@ -1,0 +1,21 @@
+code: date_palm
+names: {en: Date palm, fr: Palmier dattier, ar: نخيل}
+perennial: true
+stage_lengths_days: {initial: 60, development: 90, mid: 120, late: 95}
+kc: {ini: 0.90, mid: 0.95, end: 0.95}
+max_height_m: 8.0
+root_depth: {initial_m: 1.50, max_m: 1.50}
+depletion_fraction_p: 0.50
+salinity: {threshold_ece_ds_m: 4.0, slope_pct_per_ds_m: 3.6}
+temperature: {frost_damage_tmin_c: -5, verified: false}
+citations:
+  - {field: temperature, source: "QATRA placeholder", note: "Approximate damaging temperatures; NOT verified - must be set by an agronomist"}
+  - {field: kc, source: "FAO-56 Table 12"}
+  - {field: root_depth, source: "FAO-56 Table 22", note: "Lower bound of 1.5-2.5 m"}
+  - {field: depletion_fraction_p, source: "FAO-56 Table 22"}
+  - {field: salinity, source: "FAO-29"}
+  - {field: stage_lengths_days, source: "QATRA placeholder", note: "Not from FAO-56; must be reviewed"}
+review_status: needs_review
+limitations:
+  - "No Ky value entered: seasonal yield-response to water deficit is not computed for date palm."
+  - "Oasis systems are multi-storey; single-crop Kc may not represent the plot."

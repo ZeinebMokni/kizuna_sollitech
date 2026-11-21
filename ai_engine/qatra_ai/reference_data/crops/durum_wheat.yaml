@@ -1,0 +1,25 @@
+code: durum_wheat
+names: {en: Durum wheat, fr: Blé dur, ar: قمح صلب}
+perennial: false
+stage_lengths_days: {initial: 30, development: 60, mid: 70, late: 40}
+kc: {ini: 0.30, mid: 1.15, end: 0.30}
+max_height_m: 1.0
+root_depth: {initial_m: 0.20, max_m: 1.50}
+depletion_fraction_p: 0.55
+ky_total: 1.15
+ky_stage: {initial: 0.20, development: 0.20, mid: 0.60, late: 0.50}
+temperature: {heat_stress_tmax_c: 32, heat_sensitive_stages: [mid], frost_damage_tmin_c: -2, frost_sensitive_stages: [mid], verified: false}
+citations:
+  - {field: temperature, source: "QATRA placeholder", note: "Approximate damaging temperatures; NOT verified - must be set by an agronomist"}
+  - {field: stage_lengths_days, source: "QATRA assumption within FAO-56 Table 11 ranges", note: "Autumn-sown (Nov) 200-day cycle; MUST be reviewed for Tunisian durum varieties"}
+  - {field: kc, source: "FAO-56 Table 12", note: "Kc_end 0.25-0.4 for dry harvest; 0.30 used"}
+  - {field: root_depth, source: "FAO-56 Table 22", note: "Lower bound of 1.5-1.8 m range"}
+  - {field: depletion_fraction_p, source: "FAO-56 Table 22"}
+  - {field: ky_total, source: "FAO-33", note: "Spring-wheat value used for autumn-sown durum; needs review"}
+  - {field: ky_stage, source: "FAO-33", note: "vegetative->initial/development, flowering->mid, yield formation->late"}
+  - {field: root_depth.initial_m, source: "QATRA assumption"}
+review_status: needs_review
+limitations:
+  - "Stage lengths are a QATRA assumption, not a published Tunisian calendar."
+  - "Salinity tolerance for durum wheat not yet entered (value to be sourced)."
+  - "Rainfed cereals: irrigation recommendations apply only to supplementary irrigation."

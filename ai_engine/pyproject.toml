@@ -1,0 +1,52 @@
+[project]
+name = "qatra-ai"
+version = "0.1.0"
+description = "QATRA AI Intelligence Engine: agronomy, prediction, optimisation and decision orchestration"
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pydantic>=2.9",
+  "pyyaml>=6.0",
+  "httpx>=0.27",
+  "ortools>=9.11",
+  "anthropic>=2.12.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+  "pandas-stubs",
+  "types-PyYAML",
+  "tabulate>=0.10.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["qatra_ai"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "N"]
+ignore = ["N802", "N803", "N806"]  # scientific notation (ET0, Ra, Ks, TAW) is clearer than snake_case
+
+[tool.ruff.lint.per-file-ignores]
+"examples/benchmark_*.py" = ["E501"]  # markdown report templates
+"qatra_ai/assistant/assistant.py" = ["E501"]  # system prompt prose
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+  "network: hits external APIs (deselect with -m 'not network')",
+  "slow: closed-loop simulations (deselect with -m 'not slow')",
+]

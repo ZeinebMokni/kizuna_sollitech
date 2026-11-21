@@ -1,0 +1,46 @@
+name: qatra
+
+services:
+  db:
+    # Ships PostgreSQL + PostGIS + TimescaleDB in one image.
+    image: timescale/timescaledb-ha:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-qatra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-qatra}
+    ports:
+      - "5433:5432"
+    volumes:
+      # Named volume: data lives inside Docker, not in the (OneDrive-synced) repo folder.
+      - qatra_pgdata:/home/postgres/pgdata
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-qatra} -d ${POSTGRES_DB:-qatra}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ../backend
+    env_file: ../.env
+    environment:
+      QATRA_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-qatra}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-qatra}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["full"]
+
+  web:
+    build: ../frontend
+    environment:
+      API_INTERNAL_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    profiles: ["full"]
+
+volumes:
+  qatra_pgdata:

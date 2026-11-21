@@ -1,0 +1,22 @@
+code: citrus
+names: {en: Citrus, fr: Agrumes, ar: قوارص}
+perennial: true
+stage_lengths_days: {initial: 60, development: 90, mid: 120, late: 95}
+kc: {ini: 0.65, mid: 0.60, end: 0.65}
+max_height_m: 3.0
+root_depth: {initial_m: 1.20, max_m: 1.20}
+depletion_fraction_p: 0.50
+ky_total: 0.90
+salinity: {threshold_ece_ds_m: 1.7, slope_pct_per_ds_m: 16.0}
+temperature: {heat_stress_tmax_c: 40, heat_sensitive_stages: [development], frost_damage_tmin_c: -2, verified: false}
+citations:
+  - {field: temperature, source: "QATRA placeholder", note: "Approximate damaging temperatures; NOT verified - must be set by an agronomist"}
+  - {field: kc, source: "FAO-56 Table 12", note: "Citrus, no ground cover, ~50% canopy"}
+  - {field: root_depth, source: "FAO-56 Table 22", note: "Lower bound of 1.2-1.5 m; established trees"}
+  - {field: depletion_fraction_p, source: "FAO-56 Table 22"}
+  - {field: ky_total, source: "FAO-33", note: "Within FAO-33 range 0.8-1.1"}
+  - {field: salinity, source: "FAO-29", note: "Orange values"}
+  - {field: stage_lengths_days, source: "QATRA placeholder", note: "Not from FAO-56; must be reviewed"}
+review_status: needs_review
+limitations:
+  - "Kc depends strongly on canopy cover; adjust for young or sparse orchards (not yet implemented)."

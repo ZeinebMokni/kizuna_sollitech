@@ -1,0 +1,25 @@
+code: tomato
+names: {en: Tomato, fr: Tomate, ar: طماطم}
+perennial: false
+stage_lengths_days: {initial: 30, development: 40, mid: 45, late: 30}
+kc: {ini: 0.60, mid: 1.15, end: 0.80}
+max_height_m: 0.6
+root_depth: {initial_m: 0.20, max_m: 0.70}
+depletion_fraction_p: 0.40
+ky_total: 1.05
+ky_stage: {initial: 0.40, development: 0.40, mid: 1.10, late: 0.40}
+salinity: {threshold_ece_ds_m: 2.5, slope_pct_per_ds_m: 9.9}
+temperature: {heat_stress_tmax_c: 35, heat_sensitive_stages: [mid], frost_damage_tmin_c: 0, verified: false}
+citations:
+  - {field: temperature, source: "QATRA placeholder", note: "Approximate damaging temperatures; NOT verified - must be set by an agronomist"}
+  - {field: stage_lengths_days, source: "FAO-56 Table 11", note: "Mediterranean spring planting; verify for Tunisian season and variety"}
+  - {field: kc, source: "FAO-56 Table 12", note: "Kc_end 0.70-0.90 range; midpoint used"}
+  - {field: root_depth, source: "FAO-56 Table 22", note: "Lower bound of 0.7-1.5 m range used (conservative storage estimate)"}
+  - {field: depletion_fraction_p, source: "FAO-56 Table 22"}
+  - {field: ky_total, source: "FAO-33 (Doorenbos & Kassam, 1979)"}
+  - {field: ky_stage, source: "FAO-33", note: "FAO-33 periods mapped to FAO-56 stages: vegetative->initial/development, flowering->mid, ripening->late"}
+  - {field: salinity, source: "FAO-29 (Ayers & Westcot, 1985)"}
+  - {field: root_depth.initial_m, source: "QATRA assumption", note: "Typical transplant rooting depth; not from a table"}
+review_status: needs_review
+limitations:
+  - "Parameters are international reference values, not calibrated for Tunisian varieties or practices."
