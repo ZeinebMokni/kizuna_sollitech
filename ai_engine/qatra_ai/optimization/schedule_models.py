@@ -95,8 +95,10 @@ class PriorityPolicy(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    # Default 2: knee of the full-season trade-off curve (docs/evaluation/
+    # scheduler_closed_loop_2025.md). A policy choice, adjustable by the user.
     kappa_perennial: float = Field(
-        default=5.0, ge=0, description="Extra weight on severe stress, perennials"
+        default=2.0, ge=0, description="Extra weight on severe stress, perennials"
     )
     kappa_annual: float = Field(
         default=1.0, ge=0, description="Extra weight on severe stress, annuals"

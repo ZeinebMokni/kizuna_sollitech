@@ -189,7 +189,7 @@ Please answer whichever items fall within your expertise. A short note with a re
    - the annual cycle of the perennials.
 5. **Kc adjustments for young or sparse orchards** (canopy cover), and whether the Kc values for olive and citrus suit local orchard densities.
 6. **Root depths:** QATRA uses the *lower* bound of FAO‑56 ranges, which gives a conservative estimate of soil storage. Is that appropriate for local soils and drip irrigation?
-7. **The priority rule:** is a ×5 extra weight on severe stress in perennials, relative to annual crops, a reasonable *default*? Users can change it; we want a defensible starting point.
+7. **The priority rule:** is a ×2 extra weight on severe stress in perennials, relative to annual crops, a reasonable *default*? Users can change it; we want a defensible starting point. In a season-long simulation, ×2 cut olive severe-stress hours by 90 % compared with ×1 for about 0.04 of tomato relative yield, and higher weights added little.
 8. **The suitability class boundaries** (relative yield ≥ 0.9 for S1, ≥ 0.75 for S2, ≥ 0.5 for S3). These are QATRA rules, not published standards.
 9. **Local data:** any station records, soil analyses, measured crop water use or yield trials that could be used to calibrate or validate QATRA.
 
