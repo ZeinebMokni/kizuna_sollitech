@@ -70,6 +70,35 @@ Then start the engine API with the file loaded:
 uv run uvicorn qatra_ai.service.app:app --port 8100 --env-file ../.env
 ```
 
+### Platform database and API
+
+The authenticated platform is separate from the engine API:
+
+```powershell
+cd infra
+docker compose up -d db
+
+cd ..\backend
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Then run the dashboard with:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+For the full Docker profile:
+
+```powershell
+cd infra
+docker compose --profile full up --build
+```
+
 - **Provider choice:** if `QATRA_LLM_PROVIDER` is unset and only a Gemini key is present, Gemini is used.
 - **Billing:** each question makes a few calls, billed by the provider.
 - **Same checks either way:** the read-only tools, the grounding check and the fallback apply whichever model is used. Without a key, the page shows the engine's ranked proposals instead.

@@ -1,6 +1,7 @@
 # QATRA dashboard
 
-Next.js 16 (App Router, `cacheComponents`), Tailwind 4, Recharts and Leaflet. A read-only view over the QATRA engine API for the hypothetical demo farm.
+Next.js 16 (App Router, `cacheComponents`), Tailwind 4, Recharts and Leaflet.
+The dashboard combines the read-only engine API with the authenticated platform API.
 
 ## Run
 
@@ -9,7 +10,10 @@ npm install
 npm run dev            # http://localhost:3000
 ```
 
-The browser calls same-origin `/api/*`; [next.config.ts](next.config.ts) proxies those requests to the engine API at `ENGINE_API_URL` (default `http://localhost:8100`). Start the API first: see the [root README](../README.md).
+The browser calls same-origin routes:
+
+- `/api/*` -> engine API (`ENGINE_API_URL`, default `http://localhost:8100`)
+- `/platform-api/*` -> authenticated platform API (`PLATFORM_API_URL`, default `http://localhost:8000`)
 
 ## Pages
 
@@ -23,10 +27,7 @@ The browser calls same-origin `/api/*`; [next.config.ts](next.config.ts) proxies
 | `/climate` | Change in dry-year irrigation need to 2041–2060, as a range across models |
 | `/anomalies` | Water anomaly alerts on **simulated** hydraulic data |
 | `/assistant` | Questions in Arabic, French or English, answered from engine results |
-
-## Not built yet
-
-- Login and roles.
-- Real farms and a database.
-- The approval workflow; the button is disabled.
-- Arabic and French interface text. Only the assistant answers in those languages.
+| `/platform/login` | Platform account login |
+| `/platform/farms` | Authenticated farm registration and listing |
+| `/platform/live` | Registered devices and measured sensor observations |
+| `/platform/incidents` | Farmer reports and unverified evidence |
