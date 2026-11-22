@@ -53,6 +53,15 @@ from app.modules.identity.routes import current_user
 router = APIRouter(prefix="/farms", tags=["field operations"])
 
 
+def canonical_command_payload(payload: dict) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def sign_command_payload(payload: dict, secret: str) -> str:
+    canonical = canonical_command_payload(payload)
+    return hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+
+
 def _valid_ip(host: str | None) -> str | None:
     if not host:
         return None
@@ -139,8 +148,9 @@ def create_actuation_command(
 
     expires_at = datetime.now(UTC) + timedelta(minutes=5)
     mqtt_topic = f"qatra/{farm_id}/{device_id}/commands/{zone.id}"
+    command_id = UUID(int=secrets.randbits(128), version=4)
     command_payload = {
-        "command_id": None,
+        "command_id": str(command_id),
         "farm_id": str(farm_id),
         "device_id": str(device_id),
         "zone_id": str(zone.id),
@@ -153,12 +163,10 @@ def create_actuation_command(
         ),
         "expires_at": expires_at.isoformat(),
     }
-    command_id = UUID(int=secrets.randbits(128), version=4)
-    command_payload["command_id"] = str(command_id)
-    canonical = json.dumps(command_payload, sort_keys=True, separators=(",", ":"))
+    canonical = canonical_command_payload(command_payload)
     payload_hash = hashlib.sha256(canonical.encode()).hexdigest()
     secret = settings.jwt_secret.get_secret_value()
-    signature = hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    signature = sign_command_payload(command_payload, secret)
 
     command = ActuationCommand(
         id=command_id,

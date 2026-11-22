@@ -28,5 +28,7 @@ data/**
 !data/**/README.md
 !data/**/*.manifest.json
 !data/**/*.meta.json
+firmware/esp32-qatra/include/qatra_config.h
+firmware/**/.pio/
 # Private farm profiles contain locations and are never committed.
 data/farms/*.yaml

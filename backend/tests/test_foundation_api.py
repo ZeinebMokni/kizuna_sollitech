@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.modules.devices.mqtt import MqttTelemetryError, parse_payload, parse_topic
+from app.modules.devices.routes import canonical_command_payload, sign_command_payload
 
 client = TestClient(app)
 
@@ -689,6 +690,23 @@ def test_actuation_command_requires_human_approval_and_expires():
         json={"reason": "too soon"},
     )
     assert rejected.status_code == 409
+
+
+def test_signed_command_canonical_payload():
+    payload = {
+        "action": "open_valve",
+        "command_id": "11111111-1111-4111-8111-111111111111",
+        "device_id": "22222222-2222-4222-8222-222222222222",
+        "duration_s": 300,
+        "expires_at": "2026-11-22T05:10:00+00:00",
+        "farm_id": "33333333-3333-4333-8333-333333333333",
+        "max_volume_m3": 12.5,
+        "zone_id": "44444444-4444-4444-8444-444444444444",
+    }
+    canonical = canonical_command_payload(payload)
+    assert canonical.startswith('{"action":"open_valve"')
+    assert canonical.index('"command_id"') < canonical.index('"device_id"')
+    assert len(sign_command_payload(payload, "test-secret")) == 64
 
 
 def test_mqtt_topic_and_payload_validation():
