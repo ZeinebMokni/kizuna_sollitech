@@ -98,6 +98,8 @@ def test_register_login_and_farm_crud():
 
 def test_weather_provenance_and_duplicate_rejection():
     suffix = uuid.uuid4().hex
+    latitude = f"35.{int(suffix[:2], 16):05d}"
+    longitude = f"9.{int(suffix[2:4], 16):05d}"
     email = f"weather-{suffix}@example.com"
     registration = client.post(
         "/auth/register",
@@ -120,8 +122,8 @@ def test_weather_provenance_and_duplicate_rejection():
 
     payload = {
         "observation_date": "2026-11-22",
-        "latitude": "35.10000",
-        "longitude": "9.30000",
+        "latitude": latitude,
+        "longitude": longitude,
         "tmin_c": "12.5",
         "tmax_c": "24.0",
         "precipitation_mm": "0",
@@ -146,9 +148,145 @@ def test_weather_provenance_and_duplicate_rejection():
         params={
             "start": "2026-11-22",
             "end": "2026-11-22",
-            "latitude": "35.10000",
-            "longitude": "9.30000",
+            "latitude": latitude,
+            "longitude": longitude,
         },
     )
     assert listing.status_code == 200
     assert len(listing.json()) == 1
+
+
+def test_device_sensor_measurement_and_irrigation_ingestion():
+    suffix = uuid.uuid4().hex
+    email = f"field-{suffix}@example.com"
+    registration = client.post(
+        "/auth/register",
+        json={
+            "email": email,
+            "password": "A-strong-password-2026",
+            "full_name": "Field Farmer",
+        },
+    )
+    assert registration.status_code == 201
+    login = client.post(
+        "/auth/login",
+        json={"email": email, "password": "A-strong-password-2026"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    farm = client.post(
+        "/farms",
+        headers=headers,
+        json={
+            "name": f"Field Farm {suffix}",
+            "code": f"FF-{suffix[:8]}",
+            "timezone": "Africa/Tunis",
+        },
+    )
+    assert farm.status_code == 201, farm.text
+    farm_id = farm.json()["id"]
+
+    parcel = client.post(
+        f"/farms/{farm_id}/parcels",
+        headers=headers,
+        json={
+            "name": "Field Parcel",
+            "boundary": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [9.40, 35.60],
+                    [9.41, 35.60],
+                    [9.41, 35.61],
+                    [9.40, 35.61],
+                    [9.40, 35.60],
+                ]],
+            },
+        },
+    )
+    assert parcel.status_code == 201, parcel.text
+    parcel_id = parcel.json()["id"]
+
+    zone = client.post(
+        f"/farms/{farm_id}/parcels/{parcel_id}/zones",
+        headers=headers,
+        json={
+            "name": "South Zone",
+            "irrigation_method": "drip",
+            "area_ha": "0.8000",
+            "design_flow_m3h": "2.500",
+        },
+    )
+    assert zone.status_code == 201, zone.text
+    zone_id = zone.json()["id"]
+
+    device = client.post(
+        f"/farms/{farm_id}/devices",
+        headers=headers,
+        json={
+            "external_id": f"esp32-{suffix}",
+            "name": "ESP32 test controller",
+            "firmware_version": "1.0.0",
+        },
+    )
+    assert device.status_code == 201, device.text
+    device_id = device.json()["id"]
+    api_key = device.json()["api_key"]
+
+    sensor = client.post(
+        f"/farms/{farm_id}/devices/{device_id}/sensors",
+        headers=headers,
+        json={
+            "external_id": "probe-1",
+            "zone_id": zone_id,
+            "kind": "soil_moisture",
+            "unit": "%",
+            "calibration_status": "calibrated",
+            "calibration_metadata": "Test probe calibration",
+        },
+    )
+    assert sensor.status_code == 201, sensor.text
+
+    measurement_payload = {
+        "sensor_external_id": "probe-1",
+        "observed_at": "2026-11-22T04:00:00Z",
+        "value": "21.5",
+        "unit": "%",
+        "quality": "valid",
+        "quality_note": "within range",
+    }
+    measurement = client.post(
+        f"/farms/{farm_id}/devices/{device_id}/measurements",
+        headers={"X-Device-Key": api_key},
+        json=measurement_payload,
+    )
+    assert measurement.status_code == 200, measurement.text
+    assert measurement.json()["zone_id"] == zone_id
+
+    duplicate = client.post(
+        f"/farms/{farm_id}/devices/{device_id}/measurements",
+        headers={"X-Device-Key": api_key},
+        json=measurement_payload,
+    )
+    assert duplicate.status_code == 200
+    assert duplicate.json()["id"] == measurement.json()["id"]
+
+    event_payload = {
+        "zone_id": zone_id,
+        "started_at": "2026-11-22T05:00:00Z",
+        "ended_at": "2026-11-22T05:30:00Z",
+        "volume_m3": "12.500",
+        "source": "meter",
+    }
+    event = client.post(
+        f"/farms/{farm_id}/irrigation-events",
+        headers=headers,
+        json=event_payload,
+    )
+    assert event.status_code == 201, event.text
+
+    duplicate_event = client.post(
+        f"/farms/{farm_id}/irrigation-events",
+        headers=headers,
+        json=event_payload,
+    )
+    assert duplicate_event.status_code == 409

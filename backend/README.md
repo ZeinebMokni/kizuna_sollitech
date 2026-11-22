@@ -63,5 +63,18 @@ WGS84 coordinates and an explicit data class. Duplicate source/point/date observ
 are rejected. Public provider readers remain in `ai_engine`; this API stores normalized
 readings and provenance.
 
+## Phase 3 field operations
+
+- `POST /farms/{farm_id}/devices`
+- `POST /farms/{farm_id}/devices/{device_id}/sensors`
+- `POST /farms/{farm_id}/devices/{device_id}/measurements`
+- `POST /farms/{farm_id}/irrigation-events`
+
+Device registration returns an API key once. Measurement ingestion requires
+`X-Device-Key`, validates sensor/unit/zone association and timezone, rejects
+future timestamps, and deduplicates sensor/timestamp pairs. Irrigation events
+record measured or farmer-reported provenance and reject exact duplicates.
+Physical actuation is not implemented in this phase.
+
 Authentication uses a bearer access token. Farm operations are restricted to platform
 administrators or the user's farm membership.

@@ -48,3 +48,29 @@ class DataSourceKind(StrEnum):
     MANUAL = "manual"
     MODEL = "model"
     SIMULATOR = "simulator"
+
+
+class DeviceStatus(StrEnum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    MAINTENANCE = "maintenance"
+
+
+class SensorKind(StrEnum):
+    SOIL_MOISTURE = "soil_moisture"
+    SOIL_TEMPERATURE = "soil_temperature"
+    AIR_TEMPERATURE = "air_temperature"
+    HUMIDITY = "humidity"
+    WATER_FLOW = "water_flow"
+    WATER_PRESSURE = "water_pressure"
+    TANK_LEVEL = "tank_level"
+    SOLAR_PRODUCTION = "solar_production"
+    BATTERY_LEVEL = "battery_level"
+    PUMP_STATUS = "pump_status"
+
+
+class MeasurementQuality(StrEnum):
+    VALID = "valid"
+    SUSPECT = "suspect"
+    INVALID = "invalid"
+    MISSING = "missing"
