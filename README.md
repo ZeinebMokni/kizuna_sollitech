@@ -10,7 +10,7 @@ Agricultural water decision support for pump-irrigated farms in Tunisia. Its cen
 |---|---|---|
 | [ai_engine/](ai_engine/) | The decision engine (`qatra_ai`, Python): agronomy, scheduling, allocation, anomaly detection, suitability, climate scenarios, decision ranking, assistant, and a read-only HTTP API | [ai_engine/README.md](ai_engine/README.md) |
 | [frontend/](frontend/) | Dashboard (Next.js) over the engine API | [frontend/README.md](frontend/README.md) |
-| [backend/](backend/) | Paused scaffold of the multi-farm platform (auth, farms, PostGIS). Not runnable yet | [docs/BLUEPRINT.md](docs/BLUEPRINT.md) |
+| [backend/](backend/) | Authenticated FastAPI/PostgreSQL foundation for users, farms, parcels and irrigation zones | [backend/README.md](backend/README.md), [docs/BLUEPRINT.md](docs/BLUEPRINT.md) |
 | [docs/](docs/) | Blueprints, methodology for reviewers, evaluation and scenario reports | [docs/METHODOLOGY.md](docs/METHODOLOGY.md) |
 
 ## Run the dashboard

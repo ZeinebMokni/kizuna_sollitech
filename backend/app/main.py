@@ -1,0 +1,50 @@
+import uuid
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import get_settings
+from app.core.errors import register_error_handlers
+from app.core.logging import configure_logging, request_id_var
+from app.modules.farms.routes import router as farms_router
+from app.modules.identity.routes import router as identity_router
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    app = FastAPI(
+        title="QATRA Platform API",
+        version="0.2.0",
+        description="Trusted agricultural data and decision platform",
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+    register_error_handlers(app)
+
+    @app.middleware("http")
+    async def request_id(request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        token = request_id_var.set(request_id)
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            return response
+        finally:
+            request_id_var.reset(token)
+
+    @app.get("/health")
+    def health() -> dict:
+        return {"status": "ok"}
+
+    app.include_router(identity_router)
+    app.include_router(farms_router)
+    return app
+
+
+app = create_app()

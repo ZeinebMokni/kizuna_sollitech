@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Identity, Index, String, func
+from sqlalchemy import BigInteger, DateTime, Identity, Index, String, Uuid, func
 from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -20,12 +20,12 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
-    actor_user_id: Mapped[uuid.UUID | None]  # no FK: logs must survive user deletion
-    actor_type: Mapped[str] = mapped_column(String(16))  # user | system | device
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # no FK
+    actor_type: Mapped[str] = mapped_column(String(16))
     action: Mapped[str] = mapped_column(String(64))
     entity_type: Mapped[str] = mapped_column(String(64))
     entity_id: Mapped[str | None] = mapped_column(String(64))
-    farm_id: Mapped[uuid.UUID | None]  # no FK: logs must survive farm deletion
+    farm_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # no FK
     before: Mapped[dict | None] = mapped_column(JSONB)
     after: Mapped[dict | None] = mapped_column(JSONB)
     ip: Mapped[str | None] = mapped_column(INET)
