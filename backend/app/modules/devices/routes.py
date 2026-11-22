@@ -18,6 +18,7 @@ from app.core.enums import (
 from app.core.errors import Conflict, Forbidden, NotFound, Unauthorized, Unprocessable
 from app.modules.devices.models import (
     Device,
+    DeviceCommunication,
     IrrigationEvent,
     Sensor,
     SensorMeasurement,
@@ -63,6 +64,41 @@ def _zone_for_farm(db: Session, farm_id: UUID, zone_id: UUID) -> IrrigationZone:
     if parcel is None or parcel.farm_id != farm_id:
         raise Forbidden("Zone does not belong to this farm")
     return zone
+
+
+@router.get("/{farm_id}/devices/{device_id}/communications")
+def list_device_communications(
+    farm_id: UUID,
+    device_id: UUID,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[dict]:
+    _operator_member(db, farm_id, user)
+    device = db.get(Device, device_id)
+    if device is None or device.farm_id != farm_id:
+        raise NotFound("Device not found")
+    rows = list(
+        db.scalars(
+            select(DeviceCommunication)
+            .where(DeviceCommunication.device_id == device_id)
+            .order_by(DeviceCommunication.received_at.desc())
+            .limit(max(1, min(limit, 500)))
+        )
+    )
+    return [
+        {
+            "id": str(row.id),
+            "protocol": row.protocol,
+            "topic": row.topic,
+            "event": row.event,
+            "status": row.status,
+            "payload_sha256": row.payload_sha256,
+            "detail": row.detail,
+            "received_at": row.received_at.isoformat(),
+        }
+        for row in rows
+    ]
 
 
 @router.get("/{farm_id}/devices")
@@ -297,6 +333,24 @@ def ingest_measurement(
         raise Unprocessable("observed_at must include a timezone")
     if payload.observed_at > datetime.now(UTC):
         raise Unprocessable("observed_at cannot be in the future")
+    if payload.idempotency_key:
+        existing = db.scalar(
+            select(SensorMeasurement).where(
+                SensorMeasurement.ingestion_idempotency_key
+                == payload.idempotency_key
+            )
+        )
+        if existing is not None:
+            return MeasurementResponse(
+                id=existing.id,
+                sensor_id=existing.sensor_id,
+                zone_id=existing.zone_id,
+                observed_at=existing.observed_at,
+                value=existing.value,
+                unit=existing.unit,
+                quality=existing.quality,
+                quality_note=existing.quality_note,
+            )
     existing = db.scalar(
         select(SensorMeasurement).where(
             SensorMeasurement.sensor_id == sensor.id,
@@ -323,6 +377,7 @@ def ingest_measurement(
         quality=payload.quality,
         quality_note=payload.quality_note,
         data_class=DataClass.MEASURED,
+        ingestion_idempotency_key=payload.idempotency_key,
     )
     device.last_seen_at = datetime.now(UTC)
     db.add(measurement)

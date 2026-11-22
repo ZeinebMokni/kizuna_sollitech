@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     Boolean,
@@ -135,4 +135,28 @@ class IrrigationEvent(Base, TimestampMixin):
             name="uq_irrigation_event",
         ),
         Index("ix_irrigation_events_zone_time", "zone_id", "started_at"),
+    )
+
+
+class DeviceCommunication(Base, TimestampMixin):
+    __tablename__ = "device_communications"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
+    device_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("devices.id", ondelete="CASCADE")
+    )
+    protocol: Mapped[str] = mapped_column(String(16), default="mqtt")
+    topic: Mapped[str] = mapped_column(String(300))
+    event: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32))
+    payload_sha256: Mapped[str] = mapped_column(String(64))
+    detail: Mapped[str | None] = mapped_column(Text)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        Index("ix_device_communications_device_time", "device_id", "received_at"),
+        Index("ix_device_communications_status_time", "status", "received_at"),
     )

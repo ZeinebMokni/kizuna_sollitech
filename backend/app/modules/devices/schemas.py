@@ -49,6 +49,7 @@ class MeasurementCreate(BaseModel):
     unit: str = Field(min_length=1, max_length=32)
     quality: MeasurementQuality = MeasurementQuality.VALID
     quality_note: str | None = None
+    idempotency_key: str | None = Field(default=None, max_length=128)
 
 
 class MeasurementResponse(BaseModel):

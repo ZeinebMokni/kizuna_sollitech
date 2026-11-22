@@ -3,6 +3,7 @@ import uuid
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.modules.devices.mqtt import MqttTelemetryError, parse_payload, parse_topic
 
 client = TestClient(app)
 
@@ -548,3 +549,32 @@ def test_advanced_satellite_climate_and_incident_evidence(monkeypatch):
     assert allocation.status_code == 200, allocation.text
     assert len(allocation.json()["inputs_hash"]) == 64
     assert "not an allocation order" in allocation.json()["disclaimer"]
+
+
+def test_mqtt_topic_and_payload_validation():
+    farm_id = uuid.uuid4()
+    device_id = uuid.uuid4()
+    topic = f"qatra/{farm_id}/{device_id}/measurements/probe-1"
+    parsed = parse_topic(topic)
+    assert parsed == (farm_id, device_id, "probe-1")
+
+    payload = parse_payload(
+        b'{"api_key":"test-key","observed_at":"2026-11-22T04:00:00Z",'
+        b'"value":21.5,"unit":"%","quality":"valid","idempotency_key":"evt-1"}'
+    )
+    assert payload["_value"] == 21.5
+    assert len(payload["_sha256"]) == 64
+
+    try:
+        parse_topic("qatra/not-a-uuid/device/measurements/probe")
+    except MqttTelemetryError:
+        pass
+    else:
+        raise AssertionError("invalid MQTT topic UUID must be rejected")
+
+    try:
+        parse_payload(b'{"api_key":"x","observed_at":"2026-11-22T04:00:00Z","value":"n/a","unit":"%"}')
+    except MqttTelemetryError:
+        pass
+    else:
+        raise AssertionError("non-numeric MQTT value must be rejected")

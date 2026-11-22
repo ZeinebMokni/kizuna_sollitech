@@ -103,3 +103,34 @@ unverified until independently reviewed.
 
 Authentication uses a bearer access token. Farm operations are restricted to platform
 administrators or the user's farm membership.
+
+## Phase 2 telemetry
+
+The platform API subscribes to MQTT when `MQTT_ENABLED=true`. The broker is
+available as the `mqtt` Docker Compose service on port 1883.
+
+Topic format:
+
+```text
+qatra/{farm_uuid}/{device_uuid}/measurements/{sensor_external_id}
+```
+
+Payload:
+
+```json
+{
+  "api_key": "one-time-registered-device-key",
+  "observed_at": "2026-11-22T04:00:00Z",
+  "value": 21.5,
+  "unit": "%",
+  "quality": "valid",
+  "quality_note": "optional",
+  "idempotency_key": "optional-unique-key"
+}
+```
+
+The MQTT subscriber validates the device key, farm, zone, sensor, unit,
+timezone, future timestamps and duplicate sensor/timestamp or idempotency keys.
+Accepted, duplicate and rejected deliveries are recorded in
+`device_communications`. The development broker allows anonymous network access;
+production deployments require Mosquitto authentication, TLS and ACL rules.

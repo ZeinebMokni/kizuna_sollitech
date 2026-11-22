@@ -25,11 +25,24 @@ services:
     env_file: ../.env
     environment:
       QATRA_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-qatra}:${POSTGRES_PASSWORD:-qatra_dev_password}@db:5432/${POSTGRES_DB:-qatra}
+      MQTT_ENABLED: "true"
+      MQTT_HOST: mqtt
+      MQTT_PORT: "1883"
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      mqtt:
+        condition: service_started
+    profiles: ["full"]
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     profiles: ["full"]
 
   engine:

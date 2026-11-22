@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     log_level: str = "INFO"
     engine_url: str = "http://127.0.0.1:8100"
+    mqtt_enabled: bool = False
+    mqtt_host: str = "127.0.0.1"
+    mqtt_port: int = 1883
+    mqtt_topic: str = "qatra/+/+/measurements/+"
 
     login_max_failures: int = 5
     login_window_seconds: int = 900
