@@ -155,8 +155,10 @@ class GeminiBackend:
         max_output_tokens: int = 8192,
         fallback_models: list[str] | None = None,
         retry_delay_s: float = 2.0,
+        tools: list[dict] | None = None,
     ):
         self._client = client
+        self.tools = tools if tools is not None else TOOL_DEFINITIONS
         self.model = model or os.environ.get("QATRA_GEMINI_MODEL", GEMINI_DEFAULT_MODEL)
         self.max_output_tokens = max_output_tokens
         fallbacks = os.environ.get("QATRA_GEMINI_FALLBACK_MODELS", "")
@@ -191,7 +193,7 @@ class GeminiBackend:
                 description=t["description"],
                 parameters_json_schema=t["input_schema"],
             )
-            for t in TOOL_DEFINITIONS
+            for t in self.tools
         ]
         return types.GenerateContentConfig(
             system_instruction=self.system,
@@ -209,10 +211,11 @@ class GeminiBackend:
             types.Content(role="user", parts=[types.Part(text=question)])
         ]
 
-    def _generate(self):
-        """Call Gemini, retrying transient errors (429/500/503) briefly. Before the first
-        successful turn, an overloaded model is replaced by the next fallback model; after it,
-        the model is kept fixed (its thought signatures are only valid for that model)."""
+    def _generate(self, config=None, contents=None):
+        """Call Gemini (this conversation, or the given contents/config), retrying transient
+        errors (429/500/503) briefly. Before the first successful turn, an overloaded model is
+        replaced by the next fallback model; after it, the model is kept fixed (its thought
+        signatures are only valid for that model)."""
         from google.genai import errors
 
         candidates = [self.model] if self._locked else [self.model, *self.fallback_models]
@@ -221,7 +224,9 @@ class GeminiBackend:
             for attempt in range(2):
                 try:
                     response = self._get_client().models.generate_content(
-                        model=model, contents=self.contents, config=self._config()
+                        model=model,
+                        contents=self.contents if contents is None else contents,
+                        config=self._config() if config is None else config,
                     )
                     self.model, self._locked = model, True
                     return response
@@ -234,9 +239,10 @@ class GeminiBackend:
                     if attempt == 0:
                         time.sleep(self.retry_delay_s)
         code = getattr(last, "code", "?")
+        detail = str(getattr(last, "message", "") or "")[:120]
         raise GeminiUnavailableError(
             f"Gemini unavailable ({code}: overloaded or rate-limited) on "
-            f"{', '.join(dict.fromkeys(candidates))}"
+            f"{', '.join(dict.fromkeys(candidates))}" + (f": {detail}" if detail else "")
         ) from last
 
     def step(self) -> Turn:
@@ -299,11 +305,16 @@ class GeminiBackend:
         self.contents.append(types.Content(role="user", parts=[types.Part(text=text)]))
 
 
-def make_backend(provider: str | None = None) -> Backend:
+def resolve_provider(provider: str | None = None) -> str:
     p = (provider or os.environ.get("QATRA_LLM_PROVIDER") or "").strip().lower()
     if not p:
         has_gemini = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
         p = "gemini" if has_gemini and not os.environ.get("ANTHROPIC_API_KEY") else "anthropic"
+    return p
+
+
+def make_backend(provider: str | None = None) -> Backend:
+    p = resolve_provider(provider)
     if p == "gemini":
         return GeminiBackend()
     if p == "anthropic":

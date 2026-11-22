@@ -1,8 +1,12 @@
 """Read-only tools the assistant may call. They return engine outputs; they never compute new
 recommendations, never write state, and never actuate hardware.
 
-Every result is wrapped as {"result_id": "r<n>", "tool": ..., "data": ..., "notes": [...]}
-so the answer can cite it and the grounding verifier can check numbers against it.
+Every result is wrapped as
+  {"result_id": "r<n>", "tool": ..., "data_class": ..., "data": ..., "notes": [...]}
+so the answer can cite it, the grounding verifier can check numbers against it, and the model
+always knows where the data comes from. `data_class` is a contracts.DataClass value, a list of
+them, "literature_reference" (crop tables), "user_supplied", or "unknown". Simulated, projected
+and unknown origins add a note the model must pass on.
 """
 
 from __future__ import annotations
@@ -12,7 +16,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from qatra_ai.agronomy.crops import get_crop, load_crop_profiles
-from qatra_ai.contracts import EngineEnvelope
+from qatra_ai.contracts import DataClass, EngineEnvelope
+from qatra_ai.market.regional import RegionalOutcome
+from qatra_ai.market.scenarios import MarketOutlook
 from qatra_ai.optimization.allocation import AllocationComparison
 from qatra_ai.orchestrator.decision import FarmDecision
 from qatra_ai.predictive.anomaly import AnomalyEvent
@@ -31,6 +37,26 @@ class AssistantContext:
     suitability: list[CropSuitability] | None = None
     anomalies: list[AnomalyEvent] | None = None
     allocation: EngineEnvelope[AllocationComparison] | None = None
+    market: list[EngineEnvelope[MarketOutlook]] | None = None
+    regional: EngineEnvelope[RegionalOutcome] | None = None
+    # where the anomaly detectors' hydraulic data and the suitability weather come from
+    anomalies_data_class: DataClass | None = None
+    suitability_data_class: DataClass | None = None
+
+
+ORIGIN_NOTES = {
+    "simulated": "SIMULATED data (synthetic, not from this farm's equipment): say so "
+    "explicitly; never describe these results as measured or as happening on the farm.",
+    "projected": "PROJECTED data (model scenarios): present as scenarios, not observations.",
+    "web_reported": "WEB-REPORTED figures, not verified by QATRA: present as reported.",
+    "unknown": "Data origin not stated: do not present these results as measured.",
+}
+
+
+def _classes(env: EngineEnvelope | None) -> list[str]:
+    if env is None or not env.provenance_summary:
+        return ["unknown"]
+    return sorted(str(DataClass(k).value) for k in env.provenance_summary)
 
 
 def _schema(props: dict[str, Any] | None = None, required: list[str] | None = None) -> dict:
@@ -90,6 +116,15 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "satisfaction, loss, fairness metrics, marginal value of water) and its disclaimer.",
         "input_schema": _schema(),
     },
+    {
+        "name": "get_market_outlook",
+        "description": "Market scenario ranges for a crop: price bands (P10/P50/P90) if 0-100 % "
+        "of candidate farms follow a recommendation, adoption cap, boom-bust check, drivers "
+        "(weather, elasticity, imports, exports), price-history backtest, and the regional "
+        "plan-price equilibrium if computed. Scenarios, never guaranteed prices. Optional "
+        "crop_code filter; empty string returns all.",
+        "input_schema": _schema({"crop_code": {"type": "string"}}, ["crop_code"]),
+    },
 ]
 
 
@@ -98,9 +133,20 @@ class ToolRegistry:
     ctx: AssistantContext
     results: dict[str, dict] = field(default_factory=dict)
 
-    def _wrap(self, tool: str, data: Any, notes: list[str] | None = None) -> dict:
+    def _wrap(
+        self, tool: str, data: Any, notes: list[str] | None = None, *, data_class: Any
+    ) -> dict:
         rid = f"r{len(self.results) + 1}"
-        out = {"result_id": rid, "tool": tool, "data": data, "notes": notes or []}
+        dc = data_class if isinstance(data_class, list) else [data_class]
+        dc = [str(getattr(d, "value", d)) for d in dc if d is not None] or ["unknown"]
+        extra = [ORIGIN_NOTES[d] for d in dc if d in ORIGIN_NOTES]
+        out = {
+            "result_id": rid,
+            "tool": tool,
+            "data_class": dc[0] if len(dc) == 1 else dc,
+            "data": data,
+            "notes": extra + list(notes or []),
+        }
         self.results[rid] = out
         return out
 
@@ -152,6 +198,7 @@ class ToolRegistry:
                 "model_validation_status": env.model.validation_status.value if env else None,
             },
             notes=list(env.limitations) if env else [],
+            data_class=_classes(env),
         )
 
     def _t_get_decision(self, package_id: str) -> dict:
@@ -160,6 +207,7 @@ class ToolRegistry:
             "get_decision",
             p.model_dump(mode="json"),
             notes=["proposal for human review; nothing is executed automatically"],
+            data_class=_classes(self.ctx.decision),
         )
 
     def _t_compare_priority(self, package_a: str, package_b: str) -> dict:
@@ -191,6 +239,7 @@ class ToolRegistry:
                 },
                 "deciding_rule": rule,
             },
+            data_class=_classes(self.ctx.decision),
         )
 
     def _t_get_crop_profile(self, crop_code: str) -> dict:
@@ -204,6 +253,7 @@ class ToolRegistry:
             "get_crop_profile",
             c.model_dump(mode="json"),
             notes=[f"review_status: {c.review_status}"],
+            data_class="literature_reference",
         )
 
     def _t_get_suitability(self, crop_code: str) -> dict:
@@ -219,6 +269,7 @@ class ToolRegistry:
                 "classes are FAO limiting-factor classes; market is not "
                 "integrated; provisional factors rest on unverified thresholds"
             ],
+            data_class=self.ctx.suitability_data_class,
         )
 
     def _t_get_anomalies(self) -> dict:
@@ -228,6 +279,7 @@ class ToolRegistry:
             "get_anomalies",
             [e.model_dump(mode="json") for e in self.ctx.anomalies],
             notes=["possible causes are hypotheses; nothing is concluded about people"],
+            data_class=self.ctx.anomalies_data_class,
         )
 
     def _t_get_allocation_comparison(self) -> dict:
@@ -235,5 +287,44 @@ class ToolRegistry:
             raise ToolError("no allocation comparison is available")
         p = self.ctx.allocation.payload
         return self._wrap(
-            "get_allocation_comparison", p.model_dump(mode="json"), notes=[p.disclaimer]
+            "get_allocation_comparison",
+            p.model_dump(mode="json"),
+            notes=[p.disclaimer],
+            data_class=(
+                _classes(self.ctx.allocation)
+                if self.ctx.allocation.provenance_summary
+                else "user_supplied"
+            ),
+        )
+
+    def _t_get_market_outlook(self, crop_code: str) -> dict:
+        if not self.ctx.market and self.ctx.regional is None:
+            raise ToolError(
+                "no market outlook is available (no market parameters have been supplied)"
+            )
+        outlooks = [
+            {
+                "confidence": e.confidence.value,
+                "confidence_reasons": e.confidence_reasons,
+                **e.payload.model_dump(mode="json"),
+            }
+            for e in self.ctx.market or []
+            if e.payload is not None and (not crop_code or e.payload.crop == crop_code)
+        ]
+        regional = None
+        if self.ctx.regional is not None and self.ctx.regional.payload is not None:
+            regional = self.ctx.regional.payload.model_dump(mode="json", exclude={"trace"})
+        if not outlooks and regional is None:
+            raise ToolError(f"no market outlook for {crop_code!r}")
+        return self._wrap(
+            "get_market_outlook",
+            {"outlooks": outlooks, "regional_equilibrium": regional},
+            notes=[
+                "all market figures are hypothetical scenario ranges built from stated "
+                "assumptions; quote them as ranges, never as expected or guaranteed prices",
+            ],
+            data_class=sorted(
+                {c for e in self.ctx.market or [] for c in _classes(e)}
+                | (set(_classes(self.ctx.regional)) if self.ctx.regional else set())
+            ),
         )

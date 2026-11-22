@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -29,7 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from qatra_ai.agronomy.crops import get_crop
-from qatra_ai.assistant.assistant import QatraAssistant
+from qatra_ai.assistant.assistant import QatraAssistant, detect_language
 from qatra_ai.assistant.tools import AssistantContext
 from qatra_ai.contracts import DataClass
 from qatra_ai.data.fusion import DataFusionEngine
@@ -41,10 +42,13 @@ from qatra_ai.data.ingestion import (
 from qatra_ai.data.station_selection import STATIONS, select_variable
 from qatra_ai.data.store import Zone, data_root, read_observations
 from qatra_ai.farms.registry import FarmRegistry, load_registry
+from qatra_ai.market import MarketOutlookRequest, market_outlook
+from qatra_ai.market.regional import RegionalRequest, regional_equilibrium
 from qatra_ai.optimization.allocation import (
     AllocationRequest,
     compare_allocations,
 )
+from qatra_ai.service import telemetry
 from qatra_ai.service.data import (
     CACHE_DIR,
     DataProvider,
@@ -53,6 +57,7 @@ from qatra_ai.service.data import (
     WeatherUnavailableError,
 )
 from qatra_ai.service.runtime import FarmRuntime, MissingInputError
+from qatra_ai.strategy.agent import FarmStrategyAgent, brief_from_profile
 
 DEMO_NOTE = (
     "Demo farm: location, weather and soil are real; the farm (zones, crops, pump, "
@@ -85,6 +90,12 @@ class AskRequest(BaseModel):
     """Module level: FastAPI resolves postponed annotations from module globals."""
 
     question: str = Field(min_length=2, max_length=1000)
+    day: date | None = None
+
+
+class StrategyRequest(BaseModel):
+    question: str | None = Field(default=None, max_length=1000)
+    language: str | None = Field(default=None, pattern="^(ar|fr|en)$")
     day: date | None = None
 
 
@@ -303,17 +314,45 @@ def create_app(
             },
         }
 
+    def assistant_context(r: FarmRuntime, d: date) -> AssistantContext:
+        """Engine outputs the LLM may read, with the origin of each data feed."""
+        env = guarded(lambda: r.decision(d))
+        try:
+            suit, wd = r.suitability
+            suit_dc = wd.data_class
+        except (MissingInputError, DataUnavailableError):
+            suit, suit_dc = None, None
+        anomalies = r.anomalies
+        return AssistantContext(
+            decision=env,
+            suitability=suit,
+            suitability_data_class=suit_dc,
+            # None (not []) when no hydraulic data exists: "no anomalies" would be a false claim
+            anomalies=anomalies[1].events if anomalies is not None else None,
+            # demo farms analyse labelled synthetic data (see FarmRuntime.anomalies)
+            anomalies_data_class=DataClass.SIMULATED if anomalies is not None else None,
+        )
+
     def ask(farm_id: str, req: AskRequest) -> dict:
         r = rt(farm_id)
         d = day_of(r, req.day)
-        env = guarded(lambda: r.decision(d))
-        try:
-            suit = r.suitability[0]
-        except (MissingInputError, DataUnavailableError):
-            suit = None
-        events = r.anomalies[1].events if r.anomalies is not None else []
-        ctx = AssistantContext(decision=env, suitability=suit, anomalies=events)
+        ctx = assistant_context(r, d)
+        t0 = time.perf_counter()
         ans = QatraAssistant(ctx).ask(req.question)
+        telemetry.record(
+            "assistant",
+            farm_id=farm_id,
+            language=ans.language,
+            provider=ans.provider,
+            model=ans.model,
+            verified=ans.verified,
+            used_fallback=ans.used_fallback,
+            fallback_reason=ans.fallback_reason,
+            violations=max(len(ans.violations), ans.rejected_drafts),
+            tool_calls=len(ans.tool_calls),
+            latency_s=time.perf_counter() - t0,
+            violation_messages=ans.violations or ans.draft_violations,
+        )
         return {
             "meta": meta(r, day=str(d)),
             "data": {
@@ -340,6 +379,19 @@ def create_app(
     def allocation(req: AllocationRequest) -> dict:
         envelope = compare_allocations(req)
         return envelope.model_dump(mode="json")
+
+    @app.post("/api/market/outlook")
+    def market(req: MarketOutlookRequest) -> dict:
+        """Scenario price bands and reflexivity for caller-supplied market parameters."""
+        return market_outlook(req).model_dump(mode="json")
+
+    @app.post("/api/market/regional")
+    def market_regional(req: RegionalRequest) -> dict:
+        """Crop plan and prices solved together for a group of following farms."""
+        try:
+            return regional_equilibrium(req).model_dump(mode="json")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/farms")
     def list_farms() -> dict:
@@ -392,6 +444,42 @@ def create_app(
     @app.post("/api/farms/{farm_id}/assistant")
     def ask_route(farm_id: str, req: AskRequest) -> dict:
         return ask(farm_id, req)
+
+    @app.post("/api/farms/{farm_id}/strategy")
+    def strategy_route(farm_id: str, req: StrategyRequest) -> dict:
+        """Web trend research + the farm's sensor-based engine state -> checked strategy.
+        Billed Claude calls and web searches; without credentials an engine-only fallback."""
+        r = rt(farm_id)
+        d = day_of(r, req.day)
+        ctx = assistant_context(r, d)
+        lang = req.language or (detect_language(req.question) if req.question else "en")
+        brief = brief_from_profile(r.profile, language=lang, question=req.question)
+        t0 = time.perf_counter()
+        report = FarmStrategyAgent(ctx).run(brief, as_of=d)
+        telemetry.record(
+            "strategy",
+            farm_id=farm_id,
+            language=lang,
+            provider=report.provider,
+            model=report.model,
+            verified=report.verified,
+            used_fallback=report.used_fallback,
+            fallback_reason=report.fallback_reason,
+            violations=max(len(report.violations), report.rejected_submissions),
+            tool_calls=len(report.tool_calls),
+            latency_s=time.perf_counter() - t0,
+            web_research=report.web_research,
+            violation_messages=report.violations,
+        )
+        return {"meta": meta(r, day=str(d)), "data": report.model_dump(mode="json")}
+
+    @app.get("/api/telemetry/llm")
+    def llm_telemetry() -> dict:
+        """Verified / fallback / rejected-draft rates, served models and latency per kind."""
+        return {
+            "path": str(telemetry.telemetry_path()),
+            **telemetry.summarize(telemetry.read_events()),
+        }
 
     # former single-farm routes -> default farm
     @app.get("/api/farm")

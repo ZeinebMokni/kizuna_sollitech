@@ -542,11 +542,17 @@ def decide(ctx: FarmContext, request_id: str | None = None) -> EngineEnvelope[Fa
         "zones": [(z.zone_id, z.depletion_mm) for z in ctx.zones],
         "forecast": ctx.forecast_daily.reset_index().astype(str).to_dict("records"),
     }
+    provenance: dict[DataClass, int] = {}
+    for z in ctx.zones:  # origin of each zone's soil-water state (measured, inferred, ...)
+        if z.depletion_provenance is not None:
+            dc = z.depletion_provenance.data_class
+            provenance[dc] = provenance.get(dc, 0) + 1
     return EngineEnvelope[FarmDecision](
         request_id=request_id,
         engine=ENGINE,
         model=MODEL,
         inputs_hash=inputs_hash(snapshot),
+        provenance_summary=provenance,
         confidence=overall,
         confidence_reasons=["overall = weakest package confidence"],
         limitations=[

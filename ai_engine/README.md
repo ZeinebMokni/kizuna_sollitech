@@ -34,6 +34,11 @@ Design: [../docs/AI_ENGINE_BLUEPRINT.md](../docs/AI_ENGINE_BLUEPRINT.md).
 | **Decision orchestrator**: quality gate → agronomy → anomalies → safety veto → 72 h optimisation → ranked decision packages (tiers: safety / irreversible risk / stress / none) | `orchestrator.decision` | ✅ synthetic tests + real-data demo; every physical action requires human approval |
 | **Explainable assistant** (Claude `claude-opus-5-5`, Messages API tool loop, read-only tools, deterministic grounding verifier, ar/fr/en, template fallback) | `assistant` | ✅ tested offline with a scripted fake client; **not yet run live** (no API credentials on this machine) |
 | Crop suitability (FAO limiting factor S1/S2/S3/N/U + Pareto trade-offs, multi-year dry-year water need) | `suitability.engine` | ✅ real 10-year demo; heat/frost thresholds are **unverified placeholders** → provisional warnings only; market = U |
+| **Market intelligence** (Module G): price-history profile (monthly P10/P50/P90, seasonality, volatility); seasonal-naive forecast *range* with rolling-origin backtest (only with ≥ 5 years monthly data); supply = area × yield distribution; imports/exports as scenario ranges; inverse demand with an elasticity *range*; **reflexivity**: "if X % of farms follow" table, adoption cap, cobweb (boom–bust) check, diversification signals; driver influence ranking | `market` | ✅ synthetic tests; **no real price, production or elasticity data yet**, so every output is `hypothetical` with confidence `low`; prices are always P10–P90 bands, never point values |
+| Crop portfolio (§6.3): LP max E[margin] − β·CVaR (Rockafellar–Uryasev), land / well water / energy / min–max area / exclusions, fallow allowed, water and land marginal values | `optimization.portfolio` | ✅ synthetic tests |
+| **Regional reflexivity loop** (§6.4): plan ↔ price fixed point for the group of following farms (method of successive averages, stops on regret ≤ tol), naive-plan "promised vs realised" margin, crowded-crop and boom–bust signals, optional regional cap per crop; assistant tool `get_market_outlook`; `POST /api/market/outlook`, `POST /api/market/regional` | `market.regional` | ✅ synthetic tests; following farms assumed identical; same data caveat as above |
+| **Farm strategy agent**: researches recent trends on the web (prices, production, imports/exports, policy, outlooks; official sources preferred), reads the farm's sensor-based engine state (decision packages, anomalies, suitability), can run `market` scenarios on web figures (`web_reported`), and returns a strategy through a strict `submit_strategy` tool. Uses the **same provider as the assistant**: Gemini = Google Search grounding step, then a function-calling step citing sources by id (S1…); Claude = server-side web search/fetch in one loop. Deterministic checks: trend sources must have been retrieved in the run, immediate actions must restate engine packages (target, result ids, numbers), no guarantee language; one resubmission, then an engine-only fallback. If only web search fails (e.g. grounding quota), it still returns an engine-based strategy with `web_research: failed`. Prompt carries governorate + crops only. `POST /api/farms/{id}/strategy` | `strategy` | ✅ offline tests for both providers; **live Gemini run OK** 2026-11-22 (strategy verified; Google Search grounding returned 429 quota, so no web trends yet); Claude path not run live |
+| LLM safeguards after the [system evaluation](../docs/evaluation/SYSTEM_EVALUATION.md): every tool result states its `data_class` (simulated/unknown origins carry a note the model must pass on); verifier checks numbers per claim with units, dates/times and at most two citations per numeric sentence; LLM telemetry (configured vs served model, fallback, rejected-draft rule types, latency; no question/answer text) at `GET /api/telemetry/llm` | `assistant.verifier`, `assistant.tools`, `service.telemetry` | ✅ [stress test](../docs/evaluation/grounding_verifier_stress.md); live Gemini re-run 6/6 verified |
 
 **Validation status:** the irrigation scheduler and anomaly detectors are `simulation_tested`; everything else is `literature_parameterised`. Nothing has been validated against field data from Tunisia.
 
@@ -42,7 +47,7 @@ Design: [../docs/AI_ENGINE_BLUEPRINT.md](../docs/AI_ENGINE_BLUEPRINT.md).
 ```bash
 cd ai_engine
 uv sync
-uv run pytest -m "not slow"            # 143 fast tests (~10 s)
+uv run pytest -m "not slow"            # 305 fast tests (~30 s)
 uv run pytest                         # + 12 slow closed-loop/benchmark tests
 uv run python examples/season_demo.py --weather nasa_power   # real weather + real SoilGrids soil + HYPOTHETICAL tomato zone
 uv run python examples/season_demo.py                        # same with Open-Meteo (adds ET0 cross-check)
@@ -50,7 +55,10 @@ uv run python examples/schedule_demo.py                      # real weather/soil
 uv run python examples/benchmark_scheduler.py                # season-long policy comparison (slow)
 uv run python examples/benchmark_anomaly.py                  # synthetic anomaly benchmark -> docs/evaluation/
 uv run python examples/suitability_demo.py                   # 6 crops, real 2015-2024 weather + soil, HYPOTHETICAL quota
+uv run python examples/market_demo.py                         # price bands + reflexivity, ALL numbers HYPOTHETICAL
+uv run python examples/regional_demo.py                       # naive vs equilibrium crop plan, ALL numbers HYPOTHETICAL
 uv run python examples/decision_demo.py                      # ranked 'where to intervene first' packages, real weather/soil
+uv run --env-file ../.env python examples/strategy_demo.py demo-farm "Should I plant more tomato?" en   # assistant's LLM key; quota/billed calls + web searches
 uv run python examples/assistant_demo.py "Why is the tomato zone first?"   # needs ANTHROPIC_API_KEY; billed API calls
 ```
 

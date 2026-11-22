@@ -27,6 +27,7 @@ class DataClass(StrEnum):
     INFERRED = "inferred"
     SIMULATED = "simulated"
     PROJECTED = "projected"
+    WEB_REPORTED = "web_reported"  # figures read from web pages by an agent; unverified
 
 
 class ValidationStatus(StrEnum):

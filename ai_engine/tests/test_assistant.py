@@ -258,3 +258,148 @@ def test_registry_is_read_only_and_ids_sequential(context):
         for n in dir(reg)
         if n.startswith("_t_")
     )
+
+
+def test_market_tool_returns_ranges_and_disclaimer():
+    from test_market import request as market_request
+
+    from qatra_ai.assistant.tools import ToolError
+    from qatra_ai.market import market_outlook
+
+    reg = ToolRegistry(AssistantContext(market=[market_outlook(market_request())]))
+    out = json.loads(reg.call("get_market_outlook", {"crop_code": "tomato"}))
+    o = out["data"]["outlooks"][0]
+    assert o["confidence"] == "low" and o["scenario_kind"] == "hypothetical"
+    assert o["adoption"][0]["price"]["interval_kind"] == "quantile_10_90"
+    assert any("never as expected or guaranteed" in n for n in out["notes"])
+    assert out["data_class"] == "simulated" and "SIMULATED" in out["notes"][0]
+    with pytest.raises(ToolError):
+        reg.call("get_market_outlook", {"crop_code": "olive"})
+    with pytest.raises(ToolError):
+        ToolRegistry(AssistantContext()).call("get_market_outlook", {"crop_code": ""})
+
+
+def test_every_tool_result_states_its_data_class(context):
+    """P0-1 (evaluation 2026-11-22): the model must always know where data comes from."""
+    from qatra_ai.assistant.tools import TOOL_DEFINITIONS, ToolError
+    from qatra_ai.contracts import DataClass
+    from qatra_ai.predictive.anomaly import AnomalyEvent
+
+    ev = AnomalyEvent(
+        kind="slow_leak",
+        start=datetime(2026, 6, 1),
+        end=datetime(2026, 6, 2),
+        detected_at=datetime(2026, 6, 1, 12),
+        hours=24,
+        estimated_volume_m3=5.0,
+        severity="low",
+        confidence="low",
+        hypotheses=[],
+        recommended_checks=[],
+    )
+    ctx = AssistantContext(
+        decision=context.decision,
+        anomalies=[ev],
+        anomalies_data_class=DataClass.SIMULATED,
+    )
+    reg = ToolRegistry(ctx)
+    pid = context.decision.payload.packages[0].package_id
+    args = {
+        "list_decisions": {},
+        "get_decision": {"package_id": pid},
+        "compare_priority": {"package_a": pid, "package_b": pid},
+        "get_crop_profile": {"crop_code": "tomato"},
+        "get_anomalies": {},
+    }
+    for t in TOOL_DEFINITIONS:
+        if t["name"] not in args:
+            with pytest.raises(ToolError):  # no data in this context: refused, not empty
+                reg.call(t["name"], {"crop_code": ""} if t["input_schema"]["required"] else {})
+            continue
+        out = json.loads(reg.call(t["name"], args[t["name"]]))
+        assert out["data_class"] and out["data_class"] != "unknown", t["name"]
+    anomalies = json.loads(reg.call("get_anomalies", {}))
+    assert anomalies["data_class"] == "simulated"
+    assert "SIMULATED" in anomalies["notes"][0] and "never describe" in anomalies["notes"][0]
+    crop = json.loads(reg.call("get_crop_profile", {"crop_code": "tomato"}))
+    assert crop["data_class"] == "literature_reference"
+
+
+def test_unknown_origin_is_flagged(context):
+    reg = ToolRegistry(AssistantContext(anomalies=[]))  # origin not given
+    out = json.loads(reg.call("get_anomalies", {}))
+    assert out["data_class"] == "unknown" and "not stated" in out["notes"][0]
+
+
+# --- verifier: per-claim scoping, combined citations, units, dates (P0-2) -------------------
+
+SCOPED = {
+    "r1": {"data": {"amount": {"value": 120.0, "unit": "m3"}, "window": "2025-06-15T00:00/16:00"}},
+    "r2": {"data": {"depletion_mm": 64.89, "raw_mm": 21.7, "hours": [333.0, 47.0]}},
+}
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Irrigate 120 m3 [r1, r2].",
+        "Irrigate 120 m³ [r1;r2]. Depletion is 64.89 mm against 21.7 mm [r2].",
+        "Irrigate 120 m3 [r1][r2].",
+        "Window: 2025-06-15 from 00:00 to 16:00 [r1].",
+        "Irrigate 120 m3.\n- details [r1]",  # sentence without citation -> its line/paragraph
+        "Depletion 64.89 ملم [r2].",
+    ],
+)
+def test_verifier_scoped_forms_accepted(answer):
+    res = verify(answer, SCOPED)
+    assert res.ok, res.violations
+
+
+@pytest.mark.parametrize(
+    "answer, reason",
+    [
+        # 333 exists in r2 but the sentence cites only r1
+        ("Irrigate 333 m3 [r1]. Depletion 64.89 mm [r2].", "333"),
+        # 120 exists, but as m3: written as mm it is a different quantity
+        ("Depletion is 120 mm [r1, r2].", "(depth)"),
+        ("Window 2025-06-16 [r1].", "date '2025-06-16'"),
+        ("Start at 07:00 [r1].", "time '07:00'"),
+        ("Irrigate 6 m3 [r1].", "'6' (volume)"),  # small int with a unit is checked
+        ("Irrigate 120 m3 [r1, r9].", "unknown result id [r9]"),
+    ],
+)
+def test_verifier_scoped_rejections(answer, reason):
+    res = verify(answer, SCOPED)
+    assert not res.ok and any(reason in v for v in res.violations), res.violations
+
+
+def test_combined_citation_alone_is_a_citation():
+    res = verify("Irrigate 120 m3 [r1, r2].", SCOPED)
+    assert res.ok and res.citations == ["r1", "r2"]
+
+
+def test_quantity_like_objects_keep_their_text_fields():
+    """Regression (replay of a live Arabic answer): suitability factors have value+unit AND
+    rule/note strings; numbers in those strings must stay available."""
+    res = {
+        "r1": {
+            "data": [
+                {
+                    "factor": "water",
+                    "value": 0.523,
+                    "unit": "relative yield",
+                    "note": "available 6000 vs required 11083 m3/ha (P80)",
+                    "rule": "Tmax > 35.0 C",
+                }
+            ]
+        }
+    }
+    assert verify("المتوفر 6000 متر مكعب/هكتار مقابل 11083 [r1]، 52.3% [r1]، 35 [r1].", res).ok
+
+
+def test_numeric_sentence_may_not_cite_many_results():
+    res = {f"r{i}": {"data": {"v": 120.0}} for i in range(1, 4)}
+    assert verify("Irrigate 120 m3 [r1, r2].", res).ok
+    bad = verify("Irrigate 120 m3 [r1, r2, r3].", res)
+    assert not bad.ok and any("cites 3 results" in v for v in bad.violations)
+    assert verify("See results [r1, r2, r3].", res).ok  # no numbers: no limit

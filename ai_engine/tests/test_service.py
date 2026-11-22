@@ -138,3 +138,67 @@ def test_assistant_uses_engine_context_and_falls_back(client, monkeypatch):
         or body["data"]["text"]
     )
     assert client.post("/api/assistant", json={"question": "x"}).status_code == 422
+
+
+def test_market_outlook_endpoint(client):
+    body = {
+        "crop": "tomato",
+        "region": "test-region",
+        "reference": {
+            "price": 1000,
+            "production_t": 100000,
+            "elasticity": {"low": -0.6, "high": -0.3},
+            "source": "synthetic test",
+            "data_class": "simulated",
+        },
+        "scenario": {
+            "name": "test",
+            "other_production_t": {"low": 90000, "high": 110000},
+            "source": "synthetic test",
+        },
+        "candidate_area_ha": 500,
+        "yield_t_per_ha": {"p10": 40, "p50": 55, "p90": 65, "source": "synthetic"},
+        "cost_per_ha": 25000,
+        "alternative_margin_per_ha": 20000,
+        "n_samples": 500,
+    }
+    r = client.post("/api/market/outlook", json=body)
+    assert r.status_code == 200
+    out = r.json()
+    assert out["confidence"] == "low" and out["payload"]["scenario_kind"] == "hypothetical"
+    assert out["payload"]["adoption"][0]["price"]["interval_kind"] == "quantile_10_90"
+    bad = {**body, "reference": {**body["reference"], "elasticity": {"low": -0.5, "high": 0.1}}}
+    assert client.post("/api/market/outlook", json=bad).status_code == 422
+
+
+def test_market_regional_endpoint(client):
+    from test_portfolio_regional import region_req
+
+    body = region_req(n_samples=200).model_dump(mode="json")
+    r = client.post("/api/market/regional", json=body)
+    assert r.status_code == 200
+    p = r.json()["payload"]
+    assert p["converged"] and p["naive"]["overstatement_pct"] > 10
+    body["crops"][0]["min_ha"] = 1e9  # impossible minimum area
+    assert client.post("/api/market/regional", json=body).status_code == 422
+
+
+def test_strategy_endpoint_without_credentials_falls_back(client, monkeypatch):
+    from qatra_ai.strategy.agent import FarmStrategyAgent
+
+    def no_creds(self):
+        raise RuntimeError("Could not resolve authentication method")
+
+    monkeypatch.setattr(FarmStrategyAgent, "_get_client", no_creds)  # never hits the network
+    r = client.post("/api/farms/demo-farm/strategy", json={"language": "fr"})
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert data["used_fallback"] and not data["verified"] and data["language"] == "fr"
+    assert data["strategy"]["market_trends"] == [] and data["sources"] == []
+    assert client.post("/api/farms/demo-farm/strategy", json={"language": "de"}).status_code == 422
+    tele = client.get("/api/telemetry/llm").json()["by_kind"]["strategy"]
+    assert tele["requests"] == 1 and tele["fallback_rate"] == 1.0
+    assert (
+        tele["fallback_reasons"] == {"no Claude API credentials configured": 1}
+        or tele["fallback_reasons"]
+    )

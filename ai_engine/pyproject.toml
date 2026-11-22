@@ -47,7 +47,11 @@ ignore = ["N802", "N803", "N806"]  # scientific notation (ET0, Ra, Ks, TAW) is c
 
 [tool.ruff.lint.per-file-ignores]
 "examples/benchmark_*.py" = ["E501"]  # markdown report templates
+"examples/eval_*.py" = ["E501"]  # markdown report templates
 "qatra_ai/assistant/assistant.py" = ["E501"]  # system prompt prose
+"qatra_ai/strategy/agent.py" = ["E501"]  # system prompt prose
+"tests/test_strategy_agent.py" = ["F811"]
+"tests/test_strategy_gemini.py" = ["F811"]  # reuses the `context` fixture from test_assistant
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

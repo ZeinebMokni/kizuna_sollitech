@@ -37,12 +37,13 @@ SYSTEM_PROMPT = """You are the QATRA assistant. QATRA is an agricultural decisio
 
 How to work:
 - Facts come only from your tools. Call list_decisions first for any question about what to do or why, then get_decision or compare_priority for detail. Never state a measurement, model output, price or date that is not in a tool result.
-- After each fact, cite the tool result it came from with its result_id in square brackets, for example [r2]. Copy numbers exactly as the tool gives them (you may round, and you may write a fraction as a percentage).
-- Say where information comes from: measured, inferred (modelled), simulated or projected, and mention the confidence level and the main data limitation when it matters to the decision.
+- After each fact, cite the tool result it came from with its result_id in square brackets, for example [r2] (at most two ids per sentence that contains numbers, e.g. [r1, r2]). Copy numbers exactly as the tool gives them (you may round, and you may write a fraction as a percentage).
+- Every tool result has a data_class (measured, inferred = modelled, simulated, projected, web_reported, literature_reference, unknown). Say where information comes from, and always say so when it is simulated or of unknown origin, and mention the confidence level and the main data limitation when it matters to the decision.
 - If no tool has the answer, say plainly that QATRA does not have that information. Do not guess.
 - Recommendations are proposals. Any irrigation or hold needs a person's approval; never say an action has been carried out.
 - Water anomalies are hypotheses with evidence and suggested checks. Never suggest that a person is responsible or did something wrong.
 - Never promise yields, prices or outcomes. Allocation comparisons show consequences of options; they are not fair, legal or official decisions.
+- Market outlooks are scenarios. Quote prices and margins as ranges (P10 to P90) with the main assumption, never as one expected price. When a crop is recommended to many farms, say that the extra supply can lower its price and point to the adoption cap or diversification signal.
 
 Answer in the language of the user's question (Arabic, French or English). Keep answers short: lead with the action and the main reason, then at most a few supporting points."""
 
@@ -93,6 +94,8 @@ class AssistantAnswer:
     tool_calls: list[ToolCallRecord] = field(default_factory=list)
     model: str | None = None
     provider: str | None = None
+    rejected_drafts: int = 0  # drafts the grounding check rejected before this answer
+    draft_violations: list[str] = field(default_factory=list)  # why the first draft failed
 
 
 class QatraAssistant:
@@ -121,6 +124,7 @@ class QatraAssistant:
         registry = ToolRegistry(self.context)
         calls: list[ToolCallRecord] = []
         retried = False
+        draft_violations: list[str] = []
         last_violations: list[str] = []
         self.backend.start(SYSTEM_PROMPT, question, history)
 
@@ -173,6 +177,8 @@ class QatraAssistant:
                     calls,
                     turn.model or self.backend.model,
                     self.backend.provider,
+                    rejected_drafts=int(retried),
+                    draft_violations=draft_violations,
                 )
             last_violations = check.violations or ["empty answer"]
             if retried:
@@ -184,6 +190,7 @@ class QatraAssistant:
                     last_violations,
                 )
             retried = True
+            draft_violations = list(last_violations)
             self.backend.add_user_text(
                 "Your draft failed QATRA's grounding check:\n- "
                 + "\n- ".join(last_violations)
