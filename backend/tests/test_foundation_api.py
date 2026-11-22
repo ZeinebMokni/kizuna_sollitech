@@ -383,3 +383,156 @@ def test_decision_recommendation_requires_evidence_and_records_approval():
         json={"decision": "approved"},
     )
     assert resolved.status_code == 409
+
+
+def test_advanced_satellite_climate_and_incident_evidence(monkeypatch):
+    suffix = uuid.uuid4().hex
+    email = f"advanced-{suffix}@example.com"
+    assert client.post(
+        "/auth/register",
+        json={
+            "email": email,
+            "password": "A-strong-password-2026",
+            "full_name": "Advanced Farmer",
+        },
+    ).status_code == 201
+    login = client.post(
+        "/auth/login",
+        json={"email": email, "password": "A-strong-password-2026"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    farm = client.post(
+        "/farms",
+        headers=headers,
+        json={"name": f"Advanced Farm {suffix}", "code": f"AF-{suffix[:8]}"},
+    )
+    assert farm.status_code == 201, farm.text
+    farm_id = farm.json()["id"]
+
+    parcel = client.post(
+        f"/farms/{farm_id}/parcels",
+        headers=headers,
+        json={
+            "name": "Advanced Parcel",
+            "boundary": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [9.40, 35.60],
+                    [9.41, 35.60],
+                    [9.41, 35.61],
+                    [9.40, 35.61],
+                    [9.40, 35.60],
+                ]],
+            },
+        },
+    )
+    assert parcel.status_code == 201, parcel.text
+    parcel_id = parcel.json()["id"]
+
+    satellite = client.post(
+        f"/farms/{farm_id}/satellite-observations",
+        headers=headers,
+        json={
+            "parcel_id": parcel_id,
+            "observed_at": "2026-11-22T10:00:00Z",
+            "acquisition_date": "2026-11-22",
+            "provider": "Copernicus",
+            "product": "Sentinel-2",
+            "ndvi": "0.62",
+            "cloud_pct": "4.5",
+            "resolution_m": "10",
+            "scene_id": "S2-test-001",
+        },
+    )
+    assert satellite.status_code == 200, satellite.text
+    assert satellite.json()["data_class"] == "remote_sensed"
+
+    climate = client.post(
+        f"/farms/{farm_id}/climate-scenarios",
+        headers=headers,
+        json={
+            "name": "Drier hot test",
+            "kind": "hypothetical",
+            "temperature_delta_c": 2.0,
+            "precipitation_pct": -20,
+            "radiation_pct": 5,
+        },
+    )
+    assert climate.status_code == 200, climate.text
+    assert climate.json()["kind"] == "hypothetical"
+    assert climate.json()["limitations"][0].startswith("Scenario")
+
+    incident = client.post(
+        f"/farms/{farm_id}/incidents",
+        headers=headers,
+        json={
+            "incident_type": "pump_downtime",
+            "occurred_at": "2026-11-22T08:00:00Z",
+            "description": "Pump stopped after a maintenance alarm and no output was measured.",
+        },
+    )
+    assert incident.status_code == 200, incident.text
+    incident_id = incident.json()["id"]
+    assert incident.json()["verification_status"] == "unverified"
+
+    evidence = client.post(
+        f"/farms/{farm_id}/incidents/{incident_id}/evidence",
+        headers=headers,
+        json={
+            "evidence_type": "photo",
+            "description": "Photo of the pump controller error screen",
+            "source": "farmer report",
+            "observed_at": "2026-11-22T08:10:00Z",
+        },
+    )
+    assert evidence.status_code == 200, evidence.text
+    assert evidence.json()["verification"] == "unverified"
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "model": {
+                    "model_id": "lp_aquifer_allocation",
+                    "version": "0.1.0",
+                },
+                "payload": {"strategies": []},
+            }
+
+    monkeypatch.setattr(
+        "app.modules.advanced.routes.httpx.post",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+    allocation = client.post(
+        f"/farms/{farm_id}/optimization-runs",
+        headers=headers,
+        json={
+            "period_label": "2026-Q4-test",
+            "farms": [
+                {
+                    "farm_id": "farm-a",
+                    "aquifer_id": "aquifer-a",
+                    "blocks": [{
+                        "block_id": "block-a",
+                        "crop": "olive",
+                        "area_ha": 2,
+                        "demand_m3": 100,
+                    }],
+                    "pump_capacity_m3": 100,
+                }
+            ],
+            "aquifers": [
+                {
+                    "aquifer_id": "aquifer-a",
+                    "sustainable_yield_m3": 200,
+                    "source_note": "test policy input",
+                }
+            ],
+        },
+    )
+    assert allocation.status_code == 200, allocation.text
+    assert len(allocation.json()["inputs_hash"]) == 64
+    assert "not an allocation order" in allocation.json()["disclaimer"]

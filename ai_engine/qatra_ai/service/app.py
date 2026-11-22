@@ -41,6 +41,10 @@ from qatra_ai.data.ingestion import (
 from qatra_ai.data.station_selection import STATIONS, select_variable
 from qatra_ai.data.store import Zone, data_root, read_observations
 from qatra_ai.farms.registry import FarmRegistry, load_registry
+from qatra_ai.optimization.allocation import (
+    AllocationRequest,
+    compare_allocations,
+)
 from qatra_ai.service.data import (
     CACHE_DIR,
     DataProvider,
@@ -331,6 +335,11 @@ def create_app(
     @app.get("/api/health")
     def health() -> dict:
         return {"status": "ok"}
+
+    @app.post("/api/allocation")
+    def allocation(req: AllocationRequest) -> dict:
+        envelope = compare_allocations(req)
+        return envelope.model_dump(mode="json")
 
     @app.get("/api/farms")
     def list_farms() -> dict:

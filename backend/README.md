@@ -87,5 +87,19 @@ and record human approvals. The current guard refuses irrigation proposals unles
 a usable, calibrated current soil-moisture state is present. No LLM or optimization
 result can execute physical actuation.
 
+## Phase 5 advanced modules
+
+- `POST /farms/{farm_id}/satellite-observations`
+- `POST /farms/{farm_id}/optimization-runs`
+- `POST /farms/{farm_id}/climate-scenarios`
+- `POST /farms/{farm_id}/incidents`
+- `POST /farms/{farm_id}/incidents/{incident_id}/evidence`
+
+Allocation requests are forwarded to the existing physics/LP engine and stored with
+their disclaimer and inputs hash. Climate scenarios are explicitly labelled as
+historical, projected or hypothetical; no hypothetical run is presented as a forecast.
+Satellite observations are remote-sensed estimates and incident evidence remains
+unverified until independently reviewed.
+
 Authentication uses a bearer access token. Farm operations are restricted to platform
 administrators or the user's farm membership.

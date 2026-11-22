@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, request_id_var
+from app.modules.advanced.routes import router as advanced_router
 from app.modules.data_sources.routes import router as data_router
 from app.modules.devices.routes import router as devices_router
 from app.modules.farms.routes import router as farms_router
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(data_router)
     app.include_router(devices_router)
     app.include_router(recommendations_router)
+    app.include_router(advanced_router)
     return app
 
 
