@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include <DHT.h>
+#include <Wire.h>
 #include <esp_task_wdt.h>
 #include <mbedtls/md.h>
 #include <time.h>
@@ -26,7 +26,6 @@ constexpr int ADC_MAX = 4095;
 
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
-DHT dht(PIN_DHT22, DHT22);
 
 volatile uint32_t flowPulseCount = 0;
 volatile uint32_t lastFlowPulseMs = 0;
@@ -46,6 +45,28 @@ void IRAM_ATTR onFlowPulse() {
   lastFlowPulseMs = millis();
 }
 
+bool sht21ReadRaw(uint8_t command, uint16_t &raw) {
+  constexpr uint8_t SHT21_ADDRESS = 0x40;
+  Wire.beginTransmission(SHT21_ADDRESS);
+  Wire.write(command);
+  if (Wire.endTransmission() != 0) return false;
+  delay(100);
+  if (Wire.requestFrom((uint8_t)SHT21_ADDRESS, (uint8_t)3) != 3) return false;
+  const uint8_t msb = Wire.read();
+  const uint8_t lsb = Wire.read();
+  Wire.read();
+  raw = (((uint16_t)msb << 8) | lsb) & 0xFFFC;
+  return true;
+}
+
+float readWaterLevelPercent() {
+  const int raw = analogRead(PIN_WATER_ADC);
+  const float percent =
+      (raw - WATER_ADC_EMPTY) * 100.0f /
+      (float)(WATER_ADC_FULL - WATER_ADC_EMPTY);
+  return constrain(percent, 0.0f, 100.0f);
+}
+
 void stopPump(const char *reason) {
   pumpRunning = false;
   pumpUntilMs = 0;
@@ -54,9 +75,8 @@ void stopPump(const char *reason) {
 }
 
 void startPump(uint32_t durationMs, float maxVolumeM3) {
-  bool tankClear = TANK_FLOAT_ACTIVE_LOW
-                       ? digitalRead(PIN_TANK_FLOAT) == HIGH
-                       : digitalRead(PIN_TANK_FLOAT) == LOW;
+  const float tankPercent = readWaterLevelPercent();
+  const bool tankClear = tankPercent >= TANK_MIN_PERCENT;
   bool emergencyClear = EMERGENCY_STOP_ACTIVE_LOW
                             ? digitalRead(PIN_EMERGENCY_STOP) == HIGH
                             : digitalRead(PIN_EMERGENCY_STOP) == LOW;
@@ -331,27 +351,25 @@ void publishTelemetry() {
   const float soil = soilMoisturePercent();
   publishMeasurement(SOIL_SENSOR_ID, soil, "%", "valid", "capacitive ADC; calibration required");
 
-  const float temperature = dht.readTemperature();
-  const float humidity = dht.readHumidity();
-  if (!isnan(temperature)) {
-    publishMeasurement("dht22-temperature-1", temperature, "degC", "valid", "DHT22");
+  uint16_t tempRaw = 0;
+  uint16_t humidityRaw = 0;
+  if (sht21ReadRaw(0xE3, tempRaw) && sht21ReadRaw(0xE5, humidityRaw)) {
+    const float temperature = -46.85f + 175.72f * tempRaw / 65536.0f;
+    const float humidity =
+        constrain(-6.0f + 125.0f * humidityRaw / 65536.0f, 0.0f, 100.0f);
+    publishMeasurement("sht21-temperature-1", temperature, "degC", "valid", "SHT21");
+    publishMeasurement("sht21-humidity-1", humidity, "%", "valid", "SHT21");
   } else {
-    publishMeasurement("dht22-temperature-1", 0.0f, "degC", "missing", "DHT22 read failed");
-  }
-  if (!isnan(humidity)) {
-    publishMeasurement("dht22-humidity-1", humidity, "%", "valid", "DHT22");
-  } else {
-    publishMeasurement("dht22-humidity-1", 0.0f, "%", "missing", "DHT22 read failed");
+    publishMeasurement("sht21-temperature-1", 0.0f, "degC", "missing", "SHT21 read failed");
+    publishMeasurement("sht21-humidity-1", 0.0f, "%", "missing", "SHT21 read failed");
   }
 
   const float flow = flowM3h();
   publishMeasurement(FLOW_SENSOR_ID, flow, "m3/h", "valid", "YF-S201 pulse count");
 
-  const bool floatActive = TANK_FLOAT_ACTIVE_LOW
-                               ? digitalRead(PIN_TANK_FLOAT) == LOW
-                               : digitalRead(PIN_TANK_FLOAT) == HIGH;
-  publishMeasurement(LEVEL_SENSOR_ID, floatActive ? 1.0f : 0.0f,
-                     "boolean", "valid", "tank float");
+  const float waterLevel = readWaterLevelPercent();
+  publishMeasurement(LEVEL_SENSOR_ID, waterLevel, "%",
+                     "valid", "water level ADC; calibration required");
 
   publishMeasurement("battery-voltage-1",
                      adcVoltage(PIN_BATTERY_ADC, BATTERY_DIVIDER_RATIO),
@@ -365,7 +383,12 @@ void publishTelemetry() {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(PIN_TANK_FLOAT, INPUT_PULLUP);
+  Wire.begin(PIN_SDA, PIN_SCL);
+  Wire.setTimeOut(200);
+  analogSetPinAttenuation(PIN_SOIL_ADC, ADC_11db);
+  analogSetPinAttenuation(PIN_WATER_ADC, ADC_11db);
+  analogSetPinAttenuation(PIN_BATTERY_ADC, ADC_11db);
+  analogSetPinAttenuation(PIN_SOLAR_ADC, ADC_11db);
   pinMode(PIN_EMERGENCY_STOP,
           EMERGENCY_STOP_ACTIVE_LOW ? INPUT_PULLUP : INPUT);
   pinMode(PIN_PUMP_MOSFET, OUTPUT);
@@ -373,7 +396,6 @@ void setup() {
   pinMode(PIN_FLOW_PULSE, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_FLOW_PULSE), onFlowPulse, RISING);
   analogReadResolution(12);
-  dht.begin();
   esp_task_wdt_config_t wdtConfig = {
       .timeout_ms = 30000,
       .idle_core_mask = (1u << 0) | (1u << 1),
@@ -402,11 +424,9 @@ void loop() {
   const bool emergencyActive = EMERGENCY_STOP_ACTIVE_LOW
                                    ? digitalRead(PIN_EMERGENCY_STOP) == LOW
                                    : digitalRead(PIN_EMERGENCY_STOP) == HIGH;
-  const bool tankFloatActive = TANK_FLOAT_ACTIVE_LOW
-                                   ? digitalRead(PIN_TANK_FLOAT) == LOW
-                                   : digitalRead(PIN_TANK_FLOAT) == HIGH;
+  const bool tankLow = readWaterLevelPercent() < TANK_MIN_PERCENT;
   if (emergencyActive) stopPump("emergency stop input active");
-  if (tankFloatActive) stopPump("tank float input active");
+  if (tankLow) stopPump("tank level below local minimum");
 
   if (pumpRunning && millis() >= pumpUntilMs) {
     stopPump("approved duration elapsed");

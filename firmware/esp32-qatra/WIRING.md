@@ -7,21 +7,17 @@ multimeter before connecting the ESP32 or a powered load.
 
 | Component | ESP32-WROOM-32 connection |
 |---|---|
-| Capacitive soil moisture | Signal -> GPIO34 (ADC), 3.3 V -> sensor, GND -> GND |
-| DHT22 | Data -> GPIO27, 3.3 V -> sensor, GND -> GND |
-| YF-S201 flow pulse | Signal -> GPIO26, 5 V or regulated supply, GND -> GND |
-| Tank float | Signal -> GPIO25, GND when active, 10k pull-up |
-| Emergency stop | Normally-open contacts -> GPIO33 and GND, 10k pull-up |
-| DC pump MOSFET gate | GPIO32 -> gate resistor 220 ohm |
+| Capacitive soil moisture | Signal -> GPIO32 (ADC), 3.3 V -> sensor, GND -> GND |
+| SHT21 | SDA -> GPIO21, SCL -> GPIO22, 3.3 V -> sensor, GND -> GND |
+| YF-S201 flow pulse | Signal -> GPIO27, 5 V or regulated supply, GND -> GND |
+| Water-level ADC | Signal -> GPIO33 through divider, GND -> GND |
+| Emergency stop | Normally-open contacts -> GPIO26 and GND, 10k pull-up |
+| DC pump MOSFET gate | GPIO25 -> gate resistor 220 ohm |
 | Battery ADC | Battery point -> voltage divider -> GPIO35 |
 | Solar ADC | Solar point -> voltage divider -> GPIO36 |
 
-GPIO25 and GPIO33 should be used as defined below:
-
-- Float active state is configurable; the default expects LOW.
-- Emergency-stop active state is configurable; the default expects LOW.
-- GPIO34 is input only and suitable for the capacitive soil sensor.
-- GPIO35 and GPIO36 are ADC inputs.
+GPIO26 and GPIO27 support digital inputs. GPIO32 and GPIO33 are ADC inputs.
+GPIO25 is used for the pump output. GPIO35 and GPIO36 are ADC inputs.
 
 Do not connect 5 V directly to ESP32 GPIO pins.
 
@@ -39,7 +35,7 @@ Suggested low-side wiring:
 ```text
 Battery negative -> pump negative -> MOSFET drain
 MOSFET source -> battery negative
-GPIO32 -> 220 ohm -> MOSFET gate
+GPIO25 -> 220 ohm -> MOSFET gate
 MOSFET gate -> 100k resistor -> battery negative
 Pump positive -> battery positive
 Fuse -> battery positive
@@ -68,9 +64,10 @@ ADC battery and solar measurements require a divider that keeps ESP32 ADC
 input below 3.3 V. A 2:1 divider is only a starting point, not a guarantee.
 Measure the divider output before energising the controller.
 
-## DHT22
+## SHT21
 
-Use GPIO27 with the data pull-up required by the sensor. Keep the cable short.
+Use GPIO21 for SDA and GPIO22 for SCL. Pull-up resistors and sensor address
+should match the module datasheet. The firmware reads address 0x40.
 
 ## YF-S201
 
