@@ -100,3 +100,19 @@ class ActuationCommandResponse(BaseModel):
     sent_at: datetime | None
     acknowledged_at: datetime | None
     acknowledgement_status: str | None
+
+
+class IrrigationCycleVerifyCreate(BaseModel):
+    actual_started_at: datetime
+    actual_ended_at: datetime
+    actual_volume_m3: Decimal = Field(gt=0)
+    actual_flow_m3h: Decimal | None = Field(default=None, gt=0)
+    actual_pressure_kpa: Decimal | None = Field(default=None, gt=0)
+
+
+class IrrigationOperatingWindowRequest(BaseModel):
+    zone_id: UUID
+    pv_kwh_available: Decimal | None = Field(default=None, ge=0)
+    battery_kwh_available: Decimal | None = Field(default=None, ge=0)
+    grid_available: bool = False
+    required_volume_m3: Decimal = Field(gt=0)

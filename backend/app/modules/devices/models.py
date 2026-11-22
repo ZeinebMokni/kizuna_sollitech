@@ -199,3 +199,36 @@ class ActuationCommand(Base, TimestampMixin):
         Index("ix_actuation_commands_farm_created", "farm_id", "created_at"),
         Index("ix_actuation_commands_expiry", "expires_at"),
     )
+
+
+class IrrigationCycleVerification(Base, TimestampMixin):
+    __tablename__ = "irrigation_cycle_verifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
+    farm_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("farms.id", ondelete="CASCADE")
+    )
+    command_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("actuation_commands.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    zone_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("irrigation_zones.id", ondelete="CASCADE")
+    )
+    actual_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    actual_ended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    actual_volume_m3: Mapped[float] = mapped_column(Numeric(12, 3))
+    actual_flow_m3h: Mapped[float | None] = mapped_column(Numeric(10, 3))
+    actual_pressure_kpa: Mapped[float | None] = mapped_column(Numeric(8, 3))
+    status: Mapped[str] = mapped_column(String(32))
+    variance_m3: Mapped[float] = mapped_column(Numeric(12, 3))
+    detail: Mapped[str | None] = mapped_column(Text)
+    data_class: Mapped[DataClass] = mapped_column(
+        pg_enum(DataClass, "data_class"),
+        default=DataClass.MEASURED,
+    )
+
+    __table_args__ = (
+        Index("ix_cycle_verification_zone_time", "zone_id", "actual_started_at"),
+        Index("ix_cycle_verification_status", "status"),
+    )

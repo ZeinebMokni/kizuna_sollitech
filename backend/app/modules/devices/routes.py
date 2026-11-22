@@ -19,12 +19,15 @@ from app.core.enums import (
     DataClass,
     DeviceStatus,
     FarmRole,
+    MeasurementQuality,
+    SensorKind,
 )
 from app.core.errors import Conflict, Forbidden, NotFound, Unauthorized, Unprocessable
 from app.modules.devices.models import (
     ActuationCommand,
     Device,
     DeviceCommunication,
+    IrrigationCycleVerification,
     IrrigationEvent,
     Sensor,
     SensorMeasurement,
@@ -34,8 +37,10 @@ from app.modules.devices.schemas import (
     ActuationCommandResponse,
     DeviceCreate,
     DeviceResponse,
+    IrrigationCycleVerifyCreate,
     IrrigationEventCreate,
     IrrigationEventResponse,
+    IrrigationOperatingWindowRequest,
     MeasurementCreate,
     MeasurementResponse,
     SensorCreate,
@@ -315,6 +320,199 @@ def list_actuation_commands(
         )
     )
     return [_command_response(row) for row in rows]
+
+
+@router.post(
+    "/{farm_id}/devices/{device_id}/commands/{command_id}/verify",
+)
+def verify_irrigation_cycle(
+    farm_id: UUID,
+    device_id: UUID,
+    command_id: UUID,
+    payload: IrrigationCycleVerifyCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    _operator_member(db, farm_id, user)
+    command = db.get(ActuationCommand, command_id)
+    if (
+        command is None
+        or command.farm_id != farm_id
+        or command.device_id != device_id
+    ):
+        raise NotFound("Actuation command not found")
+    if payload.actual_ended_at <= payload.actual_started_at:
+        raise Unprocessable("actual_ended_at must be after actual_started_at")
+    if (
+        payload.actual_started_at.tzinfo is None
+        or payload.actual_ended_at.tzinfo is None
+    ):
+        raise Unprocessable("timestamps must include a timezone")
+    if command.status not in {"sent", "acknowledged", "completed", "stopped"}:
+        raise Conflict("Only sent or acknowledged commands can be verified")
+    existing = db.scalar(
+        select(IrrigationCycleVerification).where(
+            IrrigationCycleVerification.command_id == command_id
+        )
+    )
+    if existing is not None:
+        raise Conflict("This actuation command was already verified")
+
+    expected = float(command.max_volume_m3 or 0)
+    actual = float(payload.actual_volume_m3)
+    variance = actual - expected if expected > 0 else actual
+    duration_s = int(
+        (payload.actual_ended_at - payload.actual_started_at).total_seconds()
+    )
+    relative_error = abs(variance) / expected if expected > 0 else 0
+    if relative_error > 0.10:
+        status = "diverged"
+        detail = "Measured volume differs from the commanded maximum by more than 10%"
+    elif duration_s <= 0:
+        status = "invalid"
+        detail = "Cycle duration is invalid"
+    else:
+        status = "completed"
+        detail = "Measured cycle is within the command tolerance"
+
+    verification = IrrigationCycleVerification(
+        farm_id=farm_id,
+        command_id=command.id,
+        zone_id=command.zone_id,
+        actual_started_at=payload.actual_started_at,
+        actual_ended_at=payload.actual_ended_at,
+        actual_volume_m3=actual,
+        actual_flow_m3h=payload.actual_flow_m3h,
+        actual_pressure_kpa=payload.actual_pressure_kpa,
+        status=status,
+        variance_m3=variance,
+        detail=detail,
+        data_class=DataClass.MEASURED,
+    )
+    db.add(verification)
+    command.status = "completed" if status == "completed" else "stopped"
+    record_audit(
+        db,
+        action="verify",
+        entity_type="irrigation_cycle_verification",
+        entity_id=verification.id,
+        actor_user_id=user.id,
+        farm_id=farm_id,
+        after={
+            "command_id": str(command.id),
+            "status": status,
+            "actual_volume_m3": str(actual),
+        },
+    )
+    db.flush()
+    db.commit()
+    db.refresh(verification)
+    return {
+        "id": str(verification.id),
+        "command_id": str(command.id),
+        "status": verification.status,
+        "variance_m3": float(verification.variance_m3),
+        "detail": verification.detail,
+        "actual_flow_m3h": (
+            float(verification.actual_flow_m3h)
+            if verification.actual_flow_m3h is not None
+            else None
+        ),
+        "actual_pressure_kpa": (
+            float(verification.actual_pressure_kpa)
+            if verification.actual_pressure_kpa is not None
+            else None
+        ),
+        "data_class": "measured",
+    }
+
+
+@router.post("/{farm_id}/irrigation-operating-window")
+def irrigation_operating_window(
+    farm_id: UUID,
+    payload: IrrigationOperatingWindowRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    _operator_member(db, farm_id, user)
+    zone = _zone_for_farm(db, farm_id, payload.zone_id)
+    now = datetime.now(UTC)
+    blocking = []
+
+    kinds = [
+        SensorKind.PUMP_STATUS,
+        SensorKind.WATER_FLOW,
+        SensorKind.WATER_PRESSURE,
+        SensorKind.SOLAR_PRODUCTION,
+        SensorKind.BATTERY_LEVEL,
+    ]
+    latest = {}
+    sensors = list(
+        db.scalars(
+            select(Sensor).where(
+                Sensor.zone_id == zone.id,
+                Sensor.kind.in_(kinds),
+                Sensor.is_active.is_(True),
+            )
+        )
+    )
+    for sensor in sensors:
+        row = db.scalar(
+            select(SensorMeasurement)
+            .where(
+                SensorMeasurement.sensor_id == sensor.id,
+                SensorMeasurement.quality != MeasurementQuality.INVALID,
+            )
+            .order_by(SensorMeasurement.observed_at.desc())
+        )
+        if row is None:
+            blocking.append(f"No measurement for {sensor.kind.value}")
+            continue
+        age_s = (now - row.observed_at).total_seconds()
+        if age_s > 900:
+            blocking.append(f"Stale measurement for {sensor.kind.value}")
+            continue
+        if row.quality != MeasurementQuality.VALID:
+            blocking.append(f"Uncertain measurement for {sensor.kind.value}")
+            continue
+        latest[sensor.kind.value] = {
+            "value": float(row.value),
+            "unit": row.unit,
+            "observed_at": row.observed_at.isoformat(),
+            "data_class": "measured",
+        }
+
+    missing_kinds = [kind.value for kind in kinds if kind.value not in latest]
+    if missing_kinds:
+        blocking.extend(
+            f"Missing real-time {kind}" for kind in missing_kinds
+        )
+    if not payload.grid_available and payload.pv_kwh_available is None:
+        blocking.append("No explicit PV or grid energy source")
+
+    allowed = not blocking
+    return {
+        "zone_id": str(zone.id),
+        "allowed": allowed,
+        "required_volume_m3": float(payload.required_volume_m3),
+        "blocking_reasons": blocking,
+        "latest_measurements": latest,
+        "grid_available": payload.grid_available,
+        "pv_kwh_available": (
+            float(payload.pv_kwh_available)
+            if payload.pv_kwh_available is not None
+            else None
+        ),
+        "battery_kwh_available": (
+            float(payload.battery_kwh_available)
+            if payload.battery_kwh_available is not None
+            else None
+        ),
+        "status": "ready_for_human_approval" if allowed else "blocked",
+        "actuation_note": (
+            "No command is sent by this endpoint"
+        ),
+    }
 
 
 @router.get("/{farm_id}/devices/{device_id}/communications")

@@ -150,3 +150,16 @@ safety interlocks.
 Supported actions are `open_valve`, `close_valve`, `start_pump`,
 `stop_pump` and `emergency_stop`. Opening or starting requires a duration.
 Close, stop and emergency-stop commands cannot include runtime limits.
+
+## Irrigation and energy operating verification
+
+- `POST /farms/{farm_id}/irrigation-operating-window`
+- `POST /farms/{farm_id}/devices/{device_id}/commands/{command_id}/verify`
+
+The operating-window endpoint does not send commands. It requires fresh, valid
+pump, flow, pressure, solar and battery measurements and reports blocked reasons
+explicitly. If real measurements are missing, it refuses to open the irrigation
+window.
+
+Cycle verification compares commanded and measured volume, flow and pressure.
+Differences above 10% are recorded as `diverged`, not silently corrected.

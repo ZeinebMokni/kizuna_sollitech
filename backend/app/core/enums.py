@@ -74,3 +74,9 @@ class MeasurementQuality(StrEnum):
     SUSPECT = "suspect"
     INVALID = "invalid"
     MISSING = "missing"
+
+
+class EnergySource(StrEnum):
+    PV = "pv"
+    BATTERY = "battery"
+    GRID = "grid"

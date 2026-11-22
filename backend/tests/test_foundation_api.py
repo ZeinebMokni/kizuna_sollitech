@@ -652,6 +652,37 @@ def test_actuation_command_requires_human_approval_and_expires():
     assert approved.json()["status"] == "sent"
     assert len(publisher.published) == 1
 
+    verification = client.post(
+        f"/farms/{farm_id}/devices/{device_id}/commands/{command['id']}/verify",
+        headers=headers,
+        json={
+            "actual_started_at": "2026-11-22T05:00:00Z",
+            "actual_ended_at": "2026-11-22T05:05:00Z",
+            "actual_volume_m3": "12.000",
+            "actual_flow_m3h": "144.000",
+            "actual_pressure_kpa": "310.000",
+        },
+    )
+    assert verification.status_code == 200, verification.text
+    assert verification.json()["status"] == "completed"
+    assert verification.json()["data_class"] == "measured"
+
+    operating = client.post(
+        f"/farms/{farm_id}/irrigation-operating-window",
+        headers=headers,
+        json={
+            "zone_id": zone_id,
+            "pv_kwh_available": "1.500",
+            "battery_kwh_available": "5.000",
+            "grid_available": True,
+            "required_volume_m3": "12.000",
+        },
+    )
+    assert operating.status_code == 200, operating.text
+    assert operating.json()["allowed"] is False
+    assert operating.json()["status"] == "blocked"
+    assert operating.json()["actuation_note"] == "No command is sent by this endpoint"
+
     rejected = client.post(
         f"/farms/{farm_id}/devices/{device_id}/commands/{command['id']}/reject",
         headers=headers,
