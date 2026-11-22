@@ -65,6 +65,98 @@ def _zone_for_farm(db: Session, farm_id: UUID, zone_id: UUID) -> IrrigationZone:
     return zone
 
 
+@router.get("/{farm_id}/devices")
+def list_devices(
+    farm_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[dict]:
+    _operator_member(db, farm_id, user)
+    devices = list(
+        db.scalars(
+            select(Device)
+            .where(Device.farm_id == farm_id)
+            .order_by(Device.name)
+        )
+    )
+    out = []
+    for device in devices:
+        sensors = list(db.scalars(select(Sensor).where(Sensor.device_id == device.id)))
+        out.append(
+            {
+                "id": str(device.id),
+                "external_id": device.external_id,
+                "name": device.name,
+                "status": device.status.value,
+                "firmware_version": device.firmware_version,
+                "last_seen_at": device.last_seen_at.isoformat() if device.last_seen_at else None,
+                "sensors": [
+                    {
+                        "id": str(sensor.id),
+                        "external_id": sensor.external_id,
+                        "kind": sensor.kind.value,
+                        "unit": sensor.unit,
+                        "calibration_status": sensor.calibration_status,
+                        "is_active": sensor.is_active,
+                        "zone_id": str(sensor.zone_id) if sensor.zone_id else None,
+                    }
+                    for sensor in sensors
+                ],
+            }
+        )
+    return out
+
+
+@router.get("/{farm_id}/measurements")
+def list_measurements(
+    farm_id: UUID,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[dict]:
+    _operator_member(db, farm_id, user)
+    device_ids = list(
+        db.scalars(select(Device.id).where(Device.farm_id == farm_id))
+    )
+    sensor_ids = list(
+        db.scalars(select(Sensor.id).where(Sensor.device_id.in_(device_ids)))
+    ) if device_ids else []
+    rows = list(
+        db.scalars(
+            select(SensorMeasurement)
+            .where(SensorMeasurement.sensor_id.in_(sensor_ids))
+            .order_by(SensorMeasurement.observed_at.desc())
+            .limit(max(1, min(limit, 500)))
+        )
+    ) if sensor_ids else []
+    sensors = (
+        {
+            sensor.id: sensor
+            for sensor in db.scalars(
+                select(Sensor).where(Sensor.id.in_(sensor_ids))
+            )
+        }
+        if sensor_ids
+        else {}
+    )
+    return [
+        {
+            "id": str(row.id),
+            "sensor_id": str(row.sensor_id),
+            "sensor_external_id": sensors[row.sensor_id].external_id,
+            "sensor_kind": sensors[row.sensor_id].kind.value,
+            "zone_id": str(row.zone_id) if row.zone_id else None,
+            "observed_at": row.observed_at.isoformat(),
+            "value": float(row.value),
+            "unit": row.unit,
+            "quality": row.quality.value,
+            "quality_note": row.quality_note,
+            "data_class": row.data_class.value,
+        }
+        for row in rows
+    ]
+
+
 @router.post("/{farm_id}/devices", response_model=DeviceResponse, status_code=201)
 def register_device(
     farm_id: UUID,

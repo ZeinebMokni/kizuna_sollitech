@@ -290,6 +290,15 @@ def test_device_sensor_measurement_and_irrigation_ingestion():
         json=event_payload,
     )
     assert duplicate_event.status_code == 409
+    listed_devices = client.get(f"/farms/{farm_id}/devices", headers=headers)
+    assert listed_devices.status_code == 200
+    assert listed_devices.json()[0]["external_id"] == f"esp32-{suffix}"
+    listed_measurements = client.get(
+        f"/farms/{farm_id}/measurements",
+        headers=headers,
+    )
+    assert listed_measurements.status_code == 200
+    assert listed_measurements.json()[0]["sensor_external_id"] == "probe-1"
 
 
 def test_decision_recommendation_requires_evidence_and_records_approval():
@@ -488,6 +497,9 @@ def test_advanced_satellite_climate_and_incident_evidence(monkeypatch):
     )
     assert evidence.status_code == 200, evidence.text
     assert evidence.json()["verification"] == "unverified"
+    listed_incidents = client.get(f"/farms/{farm_id}/incidents", headers=headers)
+    assert listed_incidents.status_code == 200
+    assert listed_incidents.json()[0]["id"] == incident_id
 
     class FakeResponse:
         def raise_for_status(self):

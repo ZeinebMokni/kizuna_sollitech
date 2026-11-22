@@ -16,6 +16,10 @@ const NAV = [
   { href: "/climate", label: "Climate 2050" },
   { href: "/anomalies", label: "Water anomalies" },
   { href: "/assistant", label: "Assistant" },
+  { href: "/platform/farms", label: "Platform farms" },
+  { href: "/platform/live", label: "Live monitoring" },
+  { href: "/platform/incidents", label: "Incidents" },
+  { href: "/platform/login", label: "Platform login" },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {

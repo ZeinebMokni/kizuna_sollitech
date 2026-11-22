@@ -4,6 +4,7 @@ from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit
@@ -301,3 +302,31 @@ def add_evidence(
     db.commit()
     db.refresh(row)
     return {"id": str(row.id), "verification": "unverified"}
+
+
+@router.get("/farms/{farm_id}/incidents")
+def list_incidents(
+    farm_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[dict]:
+    _require_farm(db, farm_id)
+    _member(db, farm_id, user)
+    rows = list(
+        db.scalars(
+            select(Incident)
+            .where(Incident.farm_id == farm_id)
+            .order_by(Incident.occurred_at.desc())
+        )
+    )
+    return [
+        {
+            "id": str(row.id),
+            "incident_type": row.incident_type,
+            "status": row.status,
+            "occurred_at": row.occurred_at.isoformat(),
+            "description": row.description,
+            "verification_status": row.verification_status,
+        }
+        for row in rows
+    ]
