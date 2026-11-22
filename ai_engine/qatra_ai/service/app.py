@@ -319,6 +319,8 @@ def create_app(provider: DataProvider | None = None) -> FastAPI:
                 "violations": ans.violations,
                 "citations": ans.citations,
                 "tool_calls": [c.name for c in ans.tool_calls],
+                "provider": ans.provider,
+                "model": ans.model,
             },
         }
 

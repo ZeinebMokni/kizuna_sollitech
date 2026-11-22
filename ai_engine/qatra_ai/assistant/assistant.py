@@ -7,8 +7,8 @@ has no tool that actuates hardware. Each final draft is checked by `verifier.ver
   fail twice  -> a deterministic template answer built from the tools is returned instead
 Refusals, token-limit stops and API errors also fall back to the template.
 
-Model and API usage follow the Anthropic Messages API (manual tool loop, adaptive thinking,
-explicit effort, server-side refusal fallback).
+The LLM provider (Claude or Gemini) is a pluggable backend (backends.py); the tools, the
+verifier and the fallback are the same for every provider.
 """
 
 from __future__ import annotations
@@ -18,11 +18,17 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from qatra_ai.assistant.tools import TOOL_DEFINITIONS, AssistantContext, ToolError, ToolRegistry
+from qatra_ai.assistant.backends import (
+    ANTHROPIC_MODEL,
+    AnthropicBackend,
+    Backend,
+    MissingCredentialsError,
+    make_backend,
+)
+from qatra_ai.assistant.tools import AssistantContext, ToolError, ToolRegistry
 from qatra_ai.assistant.verifier import verify
 
-DEFAULT_MODEL = "claude-opus-5-5"
-FALLBACK_BETA = "server-side-fallback-2026-07-01"
+DEFAULT_MODEL = ANTHROPIC_MODEL
 MAX_ITERATIONS = 8
 Language = Literal["ar", "fr", "en"]
 
@@ -85,95 +91,74 @@ class AssistantAnswer:
     citations: list[str]
     tool_calls: list[ToolCallRecord] = field(default_factory=list)
     model: str | None = None
+    provider: str | None = None
 
 
 class QatraAssistant:
+    """Provider-neutral loop. Pass `backend` (see backends.py), or a Claude `client` (kept for
+    tests and backwards compatibility); with neither, `make_backend()` chooses from the
+    environment (QATRA_LLM_PROVIDER, available API keys)."""
+
     def __init__(
         self,
         context: AssistantContext,
         client: Any | None = None,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         effort: str = "medium",
+        backend: Backend | None = None,
     ):
-        if client is None:
-            import anthropic  # imported lazily so the engine works without the SDK
-
-            client = anthropic.Anthropic()
-        self.client = client
-        self.model = model
-        self.effort = effort
+        if backend is None:
+            if client is not None:
+                backend = AnthropicBackend(client, model or DEFAULT_MODEL, effort)
+            else:
+                backend = make_backend()
+        self.backend = backend
         self.context = context
-
-    def _create(self, messages: list) -> Any:
-        return self.client.beta.messages.create(
-            model=self.model,
-            max_tokens=16000,
-            system=[
-                {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}
-            ],
-            tools=[{**t, "strict": True} for t in TOOL_DEFINITIONS],
-            messages=messages,
-            output_config={"effort": self.effort},
-            betas=[FALLBACK_BETA],
-            fallbacks="default",
-        )
 
     def ask(self, question: str, history: list | None = None) -> AssistantAnswer:
         lang = detect_language(question)
         registry = ToolRegistry(self.context)
         calls: list[ToolCallRecord] = []
-        messages = list(history or []) + [{"role": "user", "content": question}]
         retried = False
         last_violations: list[str] = []
+        self.backend.start(SYSTEM_PROMPT, question, history)
 
         for _ in range(MAX_ITERATIONS):
             try:
-                response = self._create(messages)
+                turn = self.backend.step()
+            except MissingCredentialsError as exc:
+                return self._template(lang, registry, calls, str(exc), last_violations)
             except Exception as exc:  # network/API failure -> deterministic answer
-                reason = (
-                    "no Claude API credentials configured"
-                    if "authentication method" in str(exc)
-                    else f"API error: {type(exc).__name__}"
-                )
-                return self._template(lang, registry, calls, reason, last_violations)
-            stop = response.stop_reason
-            if stop == "refusal":
                 return self._template(
-                    lang, registry, calls, "model declined the request", last_violations
+                    lang, registry, calls, f"API error: {type(exc).__name__}", last_violations
                 )
-            if stop == "max_tokens":
+            if turn.stop == "refusal":
+                reason = "model declined the request"
+                if turn.detail:
+                    reason += f" ({turn.detail})"
+                return self._template(lang, registry, calls, reason, last_violations)
+            if turn.stop == "max_tokens":
                 return self._template(
                     lang, registry, calls, "answer exceeded the token limit", last_violations
                 )
-            messages.append({"role": "assistant", "content": response.content})
-            if stop == "pause_turn":
+            if turn.stop == "pause":
                 continue
 
-            tool_uses = [b for b in response.content if b.type == "tool_use"]
-            if tool_uses:
+            if turn.stop == "tool_calls":
                 results = []
-                for tu in tool_uses:
+                for tc in turn.tool_calls:
                     try:
-                        content = registry.call(tu.name, dict(tu.input or {}))
+                        content = registry.call(tc.name, tc.args)
                         rid = json.loads(content)["result_id"]
-                        calls.append(ToolCallRecord(tu.name, dict(tu.input or {}), rid))
-                        results.append(
-                            {"type": "tool_result", "tool_use_id": tu.id, "content": content}
-                        )
+                        calls.append(ToolCallRecord(tc.name, tc.args, rid))
+                        results.append((tc, content, False))
                     except (ToolError, TypeError) as exc:
-                        calls.append(ToolCallRecord(tu.name, dict(tu.input or {}), None, str(exc)))
-                        results.append(
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tu.id,
-                                "content": f"Error: {exc}",
-                                "is_error": True,
-                            }
-                        )
-                messages.append({"role": "user", "content": results})  # all results, one turn
+                        calls.append(ToolCallRecord(tc.name, tc.args, None, str(exc)))
+                        results.append((tc, f"Error: {exc}", True))
+                self.backend.add_tool_results(results)
                 continue
 
-            text = "\n".join(b.text for b in response.content if b.type == "text").strip()
+            text = turn.text
             check = verify(text, registry.results, question)
             if check.ok and text:
                 return AssistantAnswer(
@@ -185,7 +170,8 @@ class QatraAssistant:
                     [],
                     check.citations,
                     calls,
-                    getattr(response, "model", self.model),
+                    turn.model or self.backend.model,
+                    self.backend.provider,
                 )
             last_violations = check.violations or ["empty answer"]
             if retried:
@@ -197,16 +183,11 @@ class QatraAssistant:
                     last_violations,
                 )
             retried = True
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        "Your draft failed QATRA's grounding check:\n- "
-                        + "\n- ".join(last_violations)
-                        + "\nRewrite the answer using only values that appear in tool results, citing "
-                        "each with its [rN] id. Call tools again if you need more data."
-                    ),
-                }
+            self.backend.add_user_text(
+                "Your draft failed QATRA's grounding check:\n- "
+                + "\n- ".join(last_violations)
+                + "\nRewrite the answer using only values that appear in tool results, citing "
+                "each with its [rN] id. Call tools again if you need more data."
             )
         return self._template(lang, registry, calls, "too many tool iterations", last_violations)
 

@@ -13,6 +13,8 @@ interface Answer {
   violations: string[];
   citations: string[];
   tool_calls: string[];
+  provider: string | null;
+  model: string | null;
 }
 
 const EXAMPLES = [
@@ -85,6 +87,7 @@ export default function Assistant() {
                   <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-900">fallback: {answer.fallback_reason}</span>
                 )}
                 {answer.tool_calls.length > 0 && <span className="rounded bg-stone-100 px-1.5 py-0.5">tools: {answer.tool_calls.join(", ")}</span>}
+                {answer.model && <span className="rounded bg-stone-100 px-1.5 py-0.5">{answer.provider}: {answer.model}</span>}
               </div>
               <p dir="auto" className="whitespace-pre-wrap text-sm leading-relaxed">{answer.text}</p>
             </div>
@@ -92,10 +95,10 @@ export default function Assistant() {
         </Card>
         <Card title="How it works">
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
-            <li>Claude (claude-opus-5-5) reads QATRA&apos;s decisions, suitability and anomaly results through read-only tools.</li>
+            <li>The configured model (Gemini or Claude) reads QATRA&apos;s decisions, suitability and anomaly results through read-only tools.</li>
             <li>A checker compares every number in the answer with those results and rejects accusatory or &quot;guaranteed&quot; wording.</li>
             <li>If the check fails twice, or no API key is set, you get the engine&apos;s ranked proposals instead.</li>
-            <li>Needs <code>ANTHROPIC_API_KEY</code> on the engine API; each question is billed.</li>
+            <li>Needs <code>GEMINI_API_KEY</code> (or <code>ANTHROPIC_API_KEY</code>) on the engine API; each question is billed by the provider.</li>
           </ul>
         </Card>
       </div>

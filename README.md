@@ -32,7 +32,30 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-The Assistant page needs `ANTHROPIC_API_KEY` set for the engine API, and each question is billed. Without a key, it shows the engine's ranked proposals instead.
+### Assistant: choose Gemini or Claude
+
+Add the settings to `.env` in the project root. The file is git-ignored.
+
+```
+# Gemini
+QATRA_LLM_PROVIDER=gemini
+GEMINI_API_KEY=your-key-from-google-ai-studio
+# QATRA_GEMINI_MODEL=gemini-4-hydrogen   (default; any Gemini model ID works)
+
+# or Claude
+# QATRA_LLM_PROVIDER=anthropic
+# ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Then start the engine API with the file loaded:
+
+```bash
+uv run uvicorn qatra_ai.service.app:app --port 8100 --env-file ../.env
+```
+
+- **Provider choice:** if `QATRA_LLM_PROVIDER` is unset and only a Gemini key is present, Gemini is used.
+- **Billing:** each question makes a few calls, billed by the provider.
+- **Same checks either way:** the read-only tools, the grounding check and the fallback apply whichever model is used. Without a key, the page shows the engine's ranked proposals instead.
 
 ## Data and licences
 
