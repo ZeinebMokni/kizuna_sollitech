@@ -11,6 +11,7 @@ from app.modules.data_sources import models_observations as observation_models  
 from app.modules.devices import models as device_models  # noqa: F401
 from app.modules.farms import models as farm_models  # noqa: F401
 from app.modules.identity import models as identity_models  # noqa: F401
+from app.modules.recommendations import models as recommendation_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

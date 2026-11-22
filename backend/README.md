@@ -76,5 +76,16 @@ future timestamps, and deduplicates sensor/timestamp pairs. Irrigation events
 record measured or farmer-reported provenance and reject exact duplicates.
 Physical actuation is not implemented in this phase.
 
+## Phase 4 decision intelligence
+
+- `POST /farms/{farm_id}/recommendations/run`
+- `GET /farms/{farm_id}/recommendations`
+- `POST /farms/{farm_id}/recommendations/{recommendation_id}/approval`
+
+Recommendations are explainable, persist input hashes and provenance evidence,
+and record human approvals. The current guard refuses irrigation proposals unless
+a usable, calibrated current soil-moisture state is present. No LLM or optimization
+result can execute physical actuation.
+
 Authentication uses a bearer access token. Farm operations are restricted to platform
 administrators or the user's farm membership.

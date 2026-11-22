@@ -64,6 +64,7 @@ def upgrade() -> None:
     from app.modules.devices import models as device_models  # noqa: F401
     from app.modules.farms import models as farm_models  # noqa: F401
     from app.modules.identity import models as identity_models  # noqa: F401
+    from app.modules.recommendations import models as recommendation_models  # noqa: F401
 
     Base.metadata.create_all(op.get_bind())
     op.execute(

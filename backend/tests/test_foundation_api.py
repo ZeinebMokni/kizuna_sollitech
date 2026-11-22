@@ -290,3 +290,96 @@ def test_device_sensor_measurement_and_irrigation_ingestion():
         json=event_payload,
     )
     assert duplicate_event.status_code == 409
+
+
+def test_decision_recommendation_requires_evidence_and_records_approval():
+    suffix = uuid.uuid4().hex
+    email = f"decision-{suffix}@example.com"
+    registration = client.post(
+        "/auth/register",
+        json={
+            "email": email,
+            "password": "A-strong-password-2026",
+            "full_name": "Decision Farmer",
+        },
+    )
+    assert registration.status_code == 201
+    login = client.post(
+        "/auth/login",
+        json={"email": email, "password": "A-strong-password-2026"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    farm = client.post(
+        "/farms",
+        headers=headers,
+        json={
+            "name": f"Decision Farm {suffix}",
+            "code": f"DF-{suffix[:8]}",
+            "timezone": "Africa/Tunis",
+        },
+    )
+    assert farm.status_code == 201, farm.text
+    farm_id = farm.json()["id"]
+
+    parcel = client.post(
+        f"/farms/{farm_id}/parcels",
+        headers=headers,
+        json={
+            "name": "Decision Parcel",
+            "boundary": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [9.40, 35.60],
+                    [9.41, 35.60],
+                    [9.41, 35.61],
+                    [9.40, 35.61],
+                    [9.40, 35.60],
+                ]],
+            },
+        },
+    )
+    assert parcel.status_code == 201, parcel.text
+    parcel_id = parcel.json()["id"]
+    zone = client.post(
+        f"/farms/{farm_id}/parcels/{parcel_id}/zones",
+        headers=headers,
+        json={
+            "name": "Decision Zone",
+            "irrigation_method": "drip",
+            "area_ha": "1.0000",
+        },
+    )
+    assert zone.status_code == 201, zone.text
+    zone_id = zone.json()["id"]
+
+    generated = client.post(
+        f"/farms/{farm_id}/recommendations/run",
+        headers=headers,
+        json={"zone_id": zone_id, "include_model_fallback": False},
+    )
+    assert generated.status_code == 200, generated.text
+    recommendation = generated.json()
+    assert recommendation["confidence"] == "insufficient_evidence"
+    assert recommendation["payload"]["action"] == "insufficient_evidence"
+    assert len(recommendation["inputs_hash"]) == 64
+    assert recommendation["payload"]["requires_human_approval"] is False
+
+    listing = client.get(f"/farms/{farm_id}/recommendations", headers=headers)
+    assert listing.status_code == 200
+    assert listing.json()[0]["id"] == recommendation["id"]
+
+    approval = client.post(
+        f"/farms/{farm_id}/recommendations/{recommendation['id']}/approval",
+        headers=headers,
+        json={"decision": "rejected", "note": "More field evidence is required"},
+    )
+    assert approval.status_code == 200, approval.text
+    assert approval.json()["decision"] == "rejected"
+
+    resolved = client.post(
+        f"/farms/{farm_id}/recommendations/{recommendation['id']}/approval",
+        headers=headers,
+        json={"decision": "approved"},
+    )
+    assert resolved.status_code == 409

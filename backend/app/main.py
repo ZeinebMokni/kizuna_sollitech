@@ -10,6 +10,7 @@ from app.modules.data_sources.routes import router as data_router
 from app.modules.devices.routes import router as devices_router
 from app.modules.farms.routes import router as farms_router
 from app.modules.identity.routes import router as identity_router
+from app.modules.recommendations.routes import router as recommendations_router
 
 
 def create_app() -> FastAPI:
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(farms_router)
     app.include_router(data_router)
     app.include_router(devices_router)
+    app.include_router(recommendations_router)
     return app
 
 
