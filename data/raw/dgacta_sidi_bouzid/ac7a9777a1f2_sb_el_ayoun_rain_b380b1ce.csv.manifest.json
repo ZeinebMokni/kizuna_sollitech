@@ -1,0 +1,24 @@
+{
+  "file_name": "ac7a9777a1f2_sb_el_ayoun_rain_b380b1ce.csv",
+  "sha256": "ac7a9777a1f2d54d0f0ead95b81c52cd46c649b131a5eaf77fa2fc77c3656e1f",
+  "size_bytes": 980,
+  "source": "dgacta_sidi_bouzid",
+  "publisher": "DGACTA (Ministère de l'Agriculture, Tunisie), via catalog.agridata.tn",
+  "url": "https://catalog.agridata.tn/dataset/e7000405-17fa-41d3-822d-3a9f03ff7106/resource/b380b1ce-cd1f-4988-aba0-a18b4b558a42/download/ac_bx3cx2k_capteur-de-pluviometrie-dans-la-station-climatique.csv",
+  "retrieved_at_utc": "2026-11-22T01:16:07.600244Z",
+  "licence": "Licence Nationale de Données Publiques Ouvertes",
+  "data_class": "measured",
+  "content_type": "text/csv",
+  "notes": "Time stamps are local time (Africa/Tunis); see qatra_ai.data.sources.dgacta",
+  "extra": {
+    "station": "sb_el_ayoun",
+    "dataset": "station-climatique-sidi-bouzid-el-ayoun-dgacta",
+    "resource_id": "b380b1ce-cd1f-4988-aba0-a18b4b558a42",
+    "resource_name": "Capteur de pluviométrie dans la station climatique",
+    "resource_last_modified": "2026-01-18T22:01:20.919398",
+    "http_last_modified": "Sun, 18 Jan 2026 22:01:20 GMT",
+    "node": "rain",
+    "depth_cm": ""
+  },
+  "schema_version": "1.0"
+}

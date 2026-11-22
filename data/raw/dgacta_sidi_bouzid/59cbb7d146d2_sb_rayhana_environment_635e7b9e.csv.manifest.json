@@ -1,0 +1,24 @@
+{
+  "file_name": "59cbb7d146d2_sb_rayhana_environment_635e7b9e.csv",
+  "sha256": "59cbb7d146d201675baada9869a888eb017c704359be8fd2091ea205edb12d43",
+  "size_bytes": 6418,
+  "source": "dgacta_sidi_bouzid",
+  "publisher": "DGACTA (Ministère de l'Agriculture, Tunisie), via catalog.agridata.tn",
+  "url": "https://catalog.agridata.tn/dataset/2f88333b-7cea-4e46-b61b-3f3b0487cc50/resource/635e7b9e-0e10-442a-8d03-463b008529ea/download/ac_rlvjeuv_capteur-denvironnement-de-la-station-climatique.csv",
+  "retrieved_at_utc": "2026-11-22T01:16:08.725985Z",
+  "licence": "Licence Nationale de Données Publiques Ouvertes",
+  "data_class": "measured",
+  "content_type": "text/csv",
+  "notes": "Time stamps are local time (Africa/Tunis); see qatra_ai.data.sources.dgacta",
+  "extra": {
+    "station": "sb_rayhana",
+    "dataset": "station-climatique-sidi-bouzid-rayhana-dgacta",
+    "resource_id": "635e7b9e-0e10-442a-8d03-463b008529ea",
+    "resource_name": "Capteur d'environnement de la station climatique",
+    "resource_last_modified": "2026-07-13T22:00:50.376581",
+    "http_last_modified": "Mon, 13 Jul 2026 22:00:50 GMT",
+    "node": "environment",
+    "depth_cm": ""
+  },
+  "schema_version": "1.0"
+}

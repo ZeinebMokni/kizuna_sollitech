@@ -1,0 +1,24 @@
+{
+  "file_name": "6e810faaae8f_sb_crra_rain_e005fe6c.csv",
+  "sha256": "6e810faaae8f606f1a8485bd6c61c37522938d961d09ce3575ee6dcc3ab967fa",
+  "size_bytes": 5300,
+  "source": "dgacta_sidi_bouzid",
+  "publisher": "DGACTA (Ministère de l'Agriculture, Tunisie), via catalog.agridata.tn",
+  "url": "https://catalog.agridata.tn/dataset/941e18ea-8a6b-4618-8037-61e4c67bb648/resource/e005fe6c-6484-448a-9cf2-e9caf3ce0a08/download/ac_pf909m4_capteur-de-pluviometrie-dans-la-station-climatique.csv",
+  "retrieved_at_utc": "2026-11-22T01:16:05.450255Z",
+  "licence": "Licence Nationale de Données Publiques Ouvertes",
+  "data_class": "measured",
+  "content_type": "text/csv",
+  "notes": "Time stamps are local time (Africa/Tunis); see qatra_ai.data.sources.dgacta",
+  "extra": {
+    "station": "sb_crra",
+    "dataset": "station-climatique-sidi-bouzid-crra-dgacta",
+    "resource_id": "e005fe6c-6484-448a-9cf2-e9caf3ce0a08",
+    "resource_name": "Capteur de pluviométrie dans la station climatique",
+    "resource_last_modified": "2026-11-22T00:01:03.943347",
+    "http_last_modified": "Sun, 22 Nov 2026 00:01:04 GMT",
+    "node": "rain",
+    "depth_cm": ""
+  },
+  "schema_version": "1.0"
+}

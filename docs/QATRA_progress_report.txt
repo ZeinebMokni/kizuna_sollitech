@@ -1,0 +1,118 @@
+QATRA progress report
+
+Nov 22, 2026 (update) · Rayen
+
+QATRA now runs on any farm described by a profile file, not only on the Sidi Bouzid demo, and it has started collecting real Tunisian station data. It is still a research prototype: nothing is validated on a real farm, and the first real station data turned out to be largely unusable.
+
+
+1. Summary of this round
+
+Since the first report, the work followed the plan "from research prototype to real data":
+
+- Repository audit and data plan (no code changes): what exists, which data sources work, and what is missing.
+- Data store: separate folders for raw, processed, sensor, reference and synthetic data; simulated data can no longer be filed as real.
+- Station archiver: downloads the three Sidi Bouzid government weather stations (DGACTA) and checks their quality.
+- Farm profiles: one YAML file describes a farm; QATRA checks it and refuses impossible values.
+- Multi-farm API: every result is now available per farm; real farms run on today's date with a live weather forecast.
+
+The engine is about 9,300 lines of Python, the dashboard about 1,400 lines. 242 automated tests pass (230 fast, 12 full-season simulations).
+
+
+2. What was built
+
+| Component | What it does | Status |
+| Audit and data plan | Inventory of the code, a tested catalogue of 11 data sources, missing datasets, risks and a step-by-step plan | docs/AUDIT_AND_DATA_PLAN.md |
+| Data store | Five folders (raw, external, processed, sensors, synthetic) with one table format. Every value records its source, data type, quality flag and the downloaded file it came from | Rules enforced in code; 21 tests |
+| Write-once downloads | Each downloaded file is kept unchanged with its URL, licence, time and SHA-256 fingerprint; edits are detected | Tested |
+| Station archiver | Finds the current files of the 3 Sidi Bouzid stations in the catalogue, stores them, converts local time to UTC, and flags bad readings with a reason | Ran live: 18 files, 3,684 readings |
+| Farm profile | Location, time zone, zones and crops, pump, solar/battery/grid, water limits, salinity, soil analysis, sensors | 16 tests; template in data/farms/README.md |
+| Multi-farm API | /api/farms lists farms; each farm has its own decision, water balance, suitability, climate, anomalies and assistant | Demo results identical to before |
+| Live mode | Real farms are planned for today: past weather from NASA POWER and Open-Meteo, next 7 days from the Open-Meteo forecast | Ran live on a test location |
+| Climate per farm | climate_2050.py --farm <id> runs the 2050 scenarios for any farm | Option checked; full run not yet done |
+
+
+3. Real data: what the Sidi Bouzid stations contain
+
+The three DGACTA stations publish short rolling windows, not a history:
+
+| Station | Usable period | Main problems |
+| CRRA | weather 22 Oct – 10 Nov 2026; soil also mid-June | humidity stuck at 100 %, pressure at 0, hourly ET0 always 0; soil water content −2 % |
+| El Ayoun | 6 hours (Dec 2025) | pressure labelled in the wrong unit |
+| Rayhana | 10 hours (Jun 2026) | pressure labelled in the wrong unit; ET0 of about 1 mm/h at night |
+
+- The catalogue says CRRA was updated today, but the content still ends on 10 November.
+- Because the CRRA humidity sensor failed, its ET0 cannot be used to check QATRA's ET0. That check is on hold until a good period is archived.
+- Temperature, wind, solar radiation, rain and soil temperature look usable.
+- Conclusion: no model can be trained on this. History only builds up if the archiver runs every day.
+
+Full findings and five questions for DGACTA: docs/data/dgacta_sidi_bouzid_quality.md
+
+
+4. How it was checked
+
+| Check | Result |
+| Demo farm before and after the multi-farm change | Identical outputs on 3 dates (decisions, water balance, suitability, anomalies); only solver time differed |
+| Demo profile against the old built-in settings | All 23 settings identical |
+| Live run on a test location (36.80 N, 10.10 E) | Plan produced for 22 Nov using the forecast to 27 Nov |
+| Archiver run twice | Second run added no duplicate files |
+
+Problems found and fixed during this round:
+
+| Problem | How it was caught | Fix |
+| Quality rules flagged normal values (no sun at night, steady soil moisture) | First real station run | Per-variable windows: 12 h for weather, 72 h for soil; none for radiation and rain |
+| Night-time ET0 of 1 mm/h not flagged | Same run | New rule: hourly ET0 above 0.2 mm/h with no sunlight is suspect |
+| API crashed on demo dates after the potato harvest (e.g. 1 Aug) | Old/new comparison | Harvested zones are left out with a note; test added |
+| API crashed where the soil map has no data (towns) | Live run | Profiles can include a soil analysis; otherwise a clear message says what to add |
+| Station time zone unknown | Solar radiation timing | Peak at 12:10 clock time = local time (UTC+1); converted to UTC |
+
+
+5. Decisions taken
+
+| Decision | Why |
+| The system must work for any farm, not one place | Your request; Sidi Bouzid is now only the demo location |
+| Missing inputs are refused, not guessed (irrigation history, soil, weather) | A guessed value would look like a result |
+| Real farm profiles stay out of git | They contain private locations |
+| Bad readings are kept and flagged, never corrected or deleted | Keeps the original data auditable |
+| Simulated data can only live in data/synthetic | Required by the project rules |
+| No machine learning yet | No real data exists to train on honestly |
+
+
+6. Limits
+
+- No field validation. Every model is literature-based or simulation-tested.
+- No real farm yet. The only farm is the hypothetical demo; the live mode was tested on an invented location.
+- Weather is gridded or modelled, not measured on the farm. The Open-Meteo free tier is non-commercial only.
+- Irrigation history is assumed (demo) or must be supplied (real farms); irrigation logs cannot be imported yet.
+- Only 6 crops have parameters, and several of their values await an agronomist's review.
+- Station data is too short and too faulty to use for checks or training today.
+- The dashboard still shows only the demo farm and is in English only.
+
+
+7. Next steps
+
+- [ ] Commit the work (nothing from this round is committed yet; .env.example must stay out)
+- [ ] Schedule the station archiver to run every day
+- [ ] Dashboard: farm selector, names and crops read from the API (step 4)
+- [ ] Nearest-station selection, used only when its data passes the quality checks (step 3)
+- [ ] Import of irrigation logs and sensor readings (POST /api/v1/sensors/measurements)
+- [ ] PVGIS hourly solar data instead of the assumed solar profile
+- [ ] Ask DGACTA for station history, sensor status and the soil-sensor calibration
+- [ ] Find one pilot farm with soil-moisture sensors, a flow meter and pump status
+- [ ] Send the methodology document to an agronomist
+
+
+8. Where everything is
+
+| Item | Location |
+| Audit and data plan | docs/AUDIT_AND_DATA_PLAN.md |
+| Station quality report | docs/data/dgacta_sidi_bouzid_quality.md |
+| Data store rules and schema | data/README.md |
+| How to add a farm (template) | data/farms/README.md |
+| Demo farm profile | ai_engine/qatra_ai/reference_data/farms/demo-farm.yaml |
+| Engine code | ai_engine/qatra_ai (new: data/store.py, data/sources/dgacta.py, farms/, service/runtime.py) |
+| How to run | README.md |
+
+Commands (in ai_engine):
+- Check farm profiles:  uv run python -m qatra_ai.farms.check
+- Archive the stations:  uv run python -m qatra_ai.data.sources.dgacta
+- Start the API:         uv run uvicorn qatra_ai.service.app:app --port 8100 --env-file ../.env

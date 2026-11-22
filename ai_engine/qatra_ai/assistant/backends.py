@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -137,17 +138,35 @@ class AnthropicBackend:
 # --- Gemini -------------------------------------------------------------------------------------
 
 _GEMINI_BLOCKED = {"SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "RECITATION"}
+_GEMINI_TRANSIENT = {429, 500, 503}
+
+
+class GeminiUnavailableError(RuntimeError):
+    """Gemini could not answer (overloaded, rate-limited, or rejected the request)."""
 
 
 class GeminiBackend:
     provider = "gemini"
 
     def __init__(
-        self, client: Any | None = None, model: str | None = None, max_output_tokens: int = 8192
+        self,
+        client: Any | None = None,
+        model: str | None = None,
+        max_output_tokens: int = 8192,
+        fallback_models: list[str] | None = None,
+        retry_delay_s: float = 2.0,
     ):
         self._client = client
         self.model = model or os.environ.get("QATRA_GEMINI_MODEL", GEMINI_DEFAULT_MODEL)
         self.max_output_tokens = max_output_tokens
+        fallbacks = os.environ.get("QATRA_GEMINI_FALLBACK_MODELS", "")
+        self.fallback_models = (
+            list(fallback_models)
+            if fallback_models is not None
+            else [m.strip() for m in fallbacks.split(",") if m.strip()]
+        )
+        self.retry_delay_s = retry_delay_s
+        self._locked = False
         self.contents: list = []
         self.system = ""
 
@@ -185,14 +204,43 @@ class GeminiBackend:
         from google.genai import types
 
         self.system = system
+        self._locked = False
         self.contents = list(history or []) + [
             types.Content(role="user", parts=[types.Part(text=question)])
         ]
 
+    def _generate(self):
+        """Call Gemini, retrying transient errors (429/500/503) briefly. Before the first
+        successful turn, an overloaded model is replaced by the next fallback model; after it,
+        the model is kept fixed (its thought signatures are only valid for that model)."""
+        from google.genai import errors
+
+        candidates = [self.model] if self._locked else [self.model, *self.fallback_models]
+        last: Exception | None = None
+        for model in dict.fromkeys(candidates):
+            for attempt in range(2):
+                try:
+                    response = self._get_client().models.generate_content(
+                        model=model, contents=self.contents, config=self._config()
+                    )
+                    self.model, self._locked = model, True
+                    return response
+                except errors.APIError as exc:
+                    last = exc
+                    if exc.code not in _GEMINI_TRANSIENT:
+                        raise GeminiUnavailableError(
+                            f"Gemini error {exc.code} on {model}: {str(exc.message)[:120]}"
+                        ) from exc
+                    if attempt == 0:
+                        time.sleep(self.retry_delay_s)
+        code = getattr(last, "code", "?")
+        raise GeminiUnavailableError(
+            f"Gemini unavailable ({code}: overloaded or rate-limited) on "
+            f"{', '.join(dict.fromkeys(candidates))}"
+        ) from last
+
     def step(self) -> Turn:
-        response = self._get_client().models.generate_content(
-            model=self.model, contents=self.contents, config=self._config()
-        )
+        response = self._generate()
         feedback = getattr(response, "prompt_feedback", None)
         if not response.candidates:
             reason = getattr(feedback, "block_reason", None)

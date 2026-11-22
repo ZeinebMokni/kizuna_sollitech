@@ -1,0 +1,24 @@
+{
+  "file_name": "95395c6305e5_sb_el_ayoun_environment_2bf59f80.csv",
+  "sha256": "95395c6305e5259051d6145f4791a17bd6a15aa42a67e597f23ec0b295ecc760",
+  "size_bytes": 3860,
+  "source": "dgacta_sidi_bouzid",
+  "publisher": "DGACTA (Ministère de l'Agriculture, Tunisie), via catalog.agridata.tn",
+  "url": "https://catalog.agridata.tn/dataset/e7000405-17fa-41d3-822d-3a9f03ff7106/resource/2bf59f80-2a9c-445d-aeda-167ffaa30cd5/download/ac_bx3cx2k_capteur-denvironnement-de-la-station-climatique.csv",
+  "retrieved_at_utc": "2026-11-22T01:16:07.804404Z",
+  "licence": "Licence Nationale de Données Publiques Ouvertes",
+  "data_class": "measured",
+  "content_type": "text/csv",
+  "notes": "Time stamps are local time (Africa/Tunis); see qatra_ai.data.sources.dgacta",
+  "extra": {
+    "station": "sb_el_ayoun",
+    "dataset": "station-climatique-sidi-bouzid-el-ayoun-dgacta",
+    "resource_id": "2bf59f80-2a9c-445d-aeda-167ffaa30cd5",
+    "resource_name": "Capteur d'environnement de la station climatique",
+    "resource_last_modified": "2026-01-18T22:01:21.126478",
+    "http_last_modified": "Sun, 18 Jan 2026 22:01:21 GMT",
+    "node": "environment",
+    "depth_cm": ""
+  },
+  "schema_version": "1.0"
+}

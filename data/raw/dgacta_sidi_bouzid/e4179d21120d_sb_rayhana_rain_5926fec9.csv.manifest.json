@@ -1,0 +1,24 @@
+{
+  "file_name": "e4179d21120d_sb_rayhana_rain_5926fec9.csv",
+  "sha256": "e4179d21120d8c5bdae5c63007e0f2dbc78b10b4465f8a43fac70dce93588663",
+  "size_bytes": 1915,
+  "source": "dgacta_sidi_bouzid",
+  "publisher": "DGACTA (Ministère de l'Agriculture, Tunisie), via catalog.agridata.tn",
+  "url": "https://catalog.agridata.tn/dataset/2f88333b-7cea-4e46-b61b-3f3b0487cc50/resource/5926fec9-e6ee-4fb7-99d3-ea0c1d550dfe/download/ac_rlvjeuv_capteur-de-pluviometrie-dans-la-station-climatique.csv",
+  "retrieved_at_utc": "2026-11-22T01:16:09.546492Z",
+  "licence": "Licence Nationale de Données Publiques Ouvertes",
+  "data_class": "measured",
+  "content_type": "text/csv",
+  "notes": "Time stamps are local time (Africa/Tunis); see qatra_ai.data.sources.dgacta",
+  "extra": {
+    "station": "sb_rayhana",
+    "dataset": "station-climatique-sidi-bouzid-rayhana-dgacta",
+    "resource_id": "5926fec9-e6ee-4fb7-99d3-ea0c1d550dfe",
+    "resource_name": "Capteur de pluviométrie dans la station climatique",
+    "resource_last_modified": "2026-07-13T22:00:51.349483",
+    "http_last_modified": "Mon, 13 Jul 2026 22:00:51 GMT",
+    "node": "rain",
+    "depth_cm": ""
+  },
+  "schema_version": "1.0"
+}

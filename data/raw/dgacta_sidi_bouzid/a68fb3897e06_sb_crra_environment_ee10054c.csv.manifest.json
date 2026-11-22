@@ -1,0 +1,24 @@
+{
+  "file_name": "a68fb3897e06_sb_crra_environment_ee10054c.csv",
+  "sha256": "a68fb3897e0622e482f4aa08bc8c8fbad353c4d27cfa8b1164536b902431274a",
+  "size_bytes": 158514,
+  "source": "dgacta_sidi_bouzid",
+  "publisher": "DGACTA (Ministère de l'Agriculture, Tunisie), via catalog.agridata.tn",
+  "url": "https://catalog.agridata.tn/dataset/941e18ea-8a6b-4618-8037-61e4c67bb648/resource/ee10054c-fdd4-4009-b5a7-08c697520adb/download/ac_pf909m4_capteur-denvironnement-de-la-station-climatique.csv",
+  "retrieved_at_utc": "2026-11-22T01:16:06.474983Z",
+  "licence": "Licence Nationale de Données Publiques Ouvertes",
+  "data_class": "measured",
+  "content_type": "text/csv",
+  "notes": "Time stamps are local time (Africa/Tunis); see qatra_ai.data.sources.dgacta",
+  "extra": {
+    "station": "sb_crra",
+    "dataset": "station-climatique-sidi-bouzid-crra-dgacta",
+    "resource_id": "ee10054c-fdd4-4009-b5a7-08c697520adb",
+    "resource_name": "Capteur d'environnement de la station climatique",
+    "resource_last_modified": "2026-11-22T00:01:05.044111",
+    "http_last_modified": "Sun, 22 Nov 2026 00:01:05 GMT",
+    "node": "environment",
+    "depth_cm": ""
+  },
+  "schema_version": "1.0"
+}

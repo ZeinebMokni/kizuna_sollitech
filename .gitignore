@@ -22,3 +22,11 @@ next-env.d.ts
 .qodo/
 *.log
 .cache/
+# data store: bulk files stay local; READMEs and provenance manifests are tracked
+data/**
+!data/**/
+!data/**/README.md
+!data/**/*.manifest.json
+!data/**/*.meta.json
+# Private farm profiles contain locations and are never committed.
+data/farms/*.yaml

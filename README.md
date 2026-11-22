@@ -32,6 +32,23 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
+### Your own farms
+
+QATRA runs on any farm described by a profile. Add `data/farms/<farm_id>.yaml`; [data/farms/README.md](data/farms/README.md) has a template. Profiles are git-ignored because they contain your farm's location. Then check them:
+
+```bash
+cd ai_engine
+uv run python -m qatra_ai.farms.check
+```
+
+- **Live mode:** real farms are planned for today. Past weather comes from NASA POWER and Open-Meteo; the next days come from the Open-Meteo forecast.
+- **Replay mode:** the demo farm replays its 2025 season.
+- **API:** `GET /api/farms` lists the farms. Each farm's results are under `/api/farms/<farm_id>/` (`decision`, `water-balance`, `suitability`, `climate`, `anomalies`, `assistant`). The older routes (`/api/decision`, ...) answer for `QATRA_DEFAULT_FARM`, which defaults to the demo farm.
+- **Missing inputs are refused, not guessed.**
+  - No irrigation history: the API answers 409 and says what to add.
+  - No soil data at the location: same (409).
+  - A failed weather or soil download: 503.
+
 ### Assistant: choose Gemini or Claude
 
 Add the settings to `.env` in the project root. The file is git-ignored.

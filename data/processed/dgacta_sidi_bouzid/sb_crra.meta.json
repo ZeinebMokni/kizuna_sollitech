@@ -1,0 +1,55 @@
+{
+  "zone": "processed",
+  "rows": 3357,
+  "data_classes": [
+    "measured"
+  ],
+  "sources": [
+    "dgacta_sidi_bouzid"
+  ],
+  "sites": [
+    "sb_crra"
+  ],
+  "variables": [
+    "air_pressure",
+    "air_temperature",
+    "dew_point_temperature",
+    "et0_daily_station",
+    "et0_hourly_station",
+    "precipitation_counter",
+    "precipitation_daily",
+    "precipitation_intensity",
+    "relative_humidity",
+    "soil_moisture_signal_10cm",
+    "soil_moisture_signal_20cm",
+    "soil_moisture_signal_30cm",
+    "soil_temperature_10cm",
+    "soil_temperature_20cm",
+    "soil_temperature_30cm",
+    "soil_vwc_10cm",
+    "soil_vwc_20cm",
+    "soil_vwc_30cm",
+    "solar_radiation",
+    "wind_direction",
+    "wind_speed"
+  ],
+  "time_min_utc": "2026-06-15T11:00:00Z",
+  "time_max_utc": "2026-11-10T20:00:00Z",
+  "qc_counts": {
+    "valid": 1897,
+    "suspect": 1005,
+    "invalid": 455
+  },
+  "raw_files_sha256": [
+    "09db6c72666e603c74e4277fbb96defa2f4768b07c2a6fcef887da63dad7b819",
+    "528a2196807a7d74dd36bd39a7526771536444e59ee505f316feabb7b238ecad",
+    "6e810faaae8f606f1a8485bd6c61c37522938d961d09ce3575ee6dcc3ab967fa",
+    "74f695fc63f00974de43c127d38f284b9c7c51ec83b21987628faa1176c0def3",
+    "75f5646b3e7bc42c6976c57251250711a995c4c733acb6dfa976474c658c36f5",
+    "794618d500f8ea43dbfdc67f4d6b3f2ceb982be40b6e1dd7f9d06966b54b407d",
+    "a68fb3897e0622e482f4aa08bc8c8fbad353c4d27cfa8b1164536b902431274a",
+    "cdd04b2a8fed6a5ebadbb25684bcc2889017dd20ba8761c725473731006b0996"
+  ],
+  "written_at_utc": "2026-11-22T01:17:14.821291Z",
+  "schema_version": "1.0"
+}

@@ -1,0 +1,24 @@
+{
+  "file_name": "75f5646b3e7b_sb_crra_soil30_e704b6cf.csv",
+  "sha256": "75f5646b3e7bc42c6976c57251250711a995c4c733acb6dfa976474c658c36f5",
+  "size_bytes": 18439,
+  "source": "dgacta_sidi_bouzid",
+  "publisher": "DGACTA (Ministère de l'Agriculture, Tunisie), via catalog.agridata.tn",
+  "url": "https://catalog.agridata.tn/dataset/941e18ea-8a6b-4618-8037-61e4c67bb648/resource/e704b6cf-1f64-4057-aafc-007b65ca8721/download/ac_pf909m4_capteur-dhumidite-du-sol-a-30-cm-de-la-station-climatique.csv",
+  "retrieved_at_utc": "2026-11-22T01:16:05.246785Z",
+  "licence": "Licence Nationale de Données Publiques Ouvertes",
+  "data_class": "measured",
+  "content_type": "text/csv",
+  "notes": "Time stamps are local time (Africa/Tunis); see qatra_ai.data.sources.dgacta",
+  "extra": {
+    "station": "sb_crra",
+    "dataset": "station-climatique-sidi-bouzid-crra-dgacta",
+    "resource_id": "e704b6cf-1f64-4057-aafc-007b65ca8721",
+    "resource_name": "Capteur d'humidité du sol à 30 cm de la station climatique",
+    "resource_last_modified": "2026-07-01T09:44:19.258341",
+    "http_last_modified": "Wed, 01 Jul 2026 09:44:19 GMT",
+    "node": "soil",
+    "depth_cm": "30"
+  },
+  "schema_version": "1.0"
+}

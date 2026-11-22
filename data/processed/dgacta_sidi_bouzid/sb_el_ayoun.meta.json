@@ -1,0 +1,51 @@
+{
+  "zone": "processed",
+  "rows": 117,
+  "data_classes": [
+    "measured"
+  ],
+  "sources": [
+    "dgacta_sidi_bouzid"
+  ],
+  "sites": [
+    "sb_el_ayoun"
+  ],
+  "variables": [
+    "air_pressure",
+    "air_temperature",
+    "dew_point_temperature",
+    "et0_daily_station",
+    "et0_hourly_station",
+    "precipitation_counter",
+    "precipitation_daily",
+    "precipitation_intensity",
+    "relative_humidity",
+    "soil_moisture_signal_10cm",
+    "soil_moisture_signal_20cm",
+    "soil_moisture_signal_30cm",
+    "soil_temperature_10cm",
+    "soil_temperature_20cm",
+    "soil_temperature_30cm",
+    "soil_vwc_10cm",
+    "soil_vwc_20cm",
+    "soil_vwc_30cm",
+    "solar_radiation",
+    "wind_direction",
+    "wind_speed"
+  ],
+  "time_min_utc": "2025-12-18T23:00:00Z",
+  "time_max_utc": "2025-12-19T06:00:00Z",
+  "qc_counts": {
+    "valid": 99,
+    "suspect": 18
+  },
+  "raw_files_sha256": [
+    "3a8104bbaff591e417dbaaba66d93fe4d330c183286dd29b5e339e053a7a9d12",
+    "95395c6305e5259051d6145f4791a17bd6a15aa42a67e597f23ec0b295ecc760",
+    "9b5b8b98465fe06b2d0276811c763b88290f6403321711fba37a978b5961c8ac",
+    "ac7a9777a1f2d54d0f0ead95b81c52cd46c649b131a5eaf77fa2fc77c3656e1f",
+    "bc442ac1af1b405d308bd099c65f895169433352d184f56eeccb714de8bb7b5f"
+  ],
+  "written_at_utc": "2026-11-22T01:17:16.012479Z",
+  "schema_version": "1.0"
+}

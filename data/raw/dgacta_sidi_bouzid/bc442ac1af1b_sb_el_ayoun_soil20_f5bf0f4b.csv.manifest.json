@@ -1,0 +1,24 @@
+{
+  "file_name": "bc442ac1af1b_sb_el_ayoun_soil20_f5bf0f4b.csv",
+  "sha256": "bc442ac1af1b405d308bd099c65f895169433352d184f56eeccb714de8bb7b5f",
+  "size_bytes": 1055,
+  "source": "dgacta_sidi_bouzid",
+  "publisher": "DGACTA (Ministère de l'Agriculture, Tunisie), via catalog.agridata.tn",
+  "url": "https://catalog.agridata.tn/dataset/e7000405-17fa-41d3-822d-3a9f03ff7106/resource/f5bf0f4b-01dc-44a0-8e67-52fa2c682e0e/download/ac_bx3cx2k_capteur-dhumidite-du-sol-a-20-cm-de-la-station-climatique.csv",
+  "retrieved_at_utc": "2026-11-22T01:16:07.396129Z",
+  "licence": "Licence Nationale de Données Publiques Ouvertes",
+  "data_class": "measured",
+  "content_type": "text/csv",
+  "notes": "Time stamps are local time (Africa/Tunis); see qatra_ai.data.sources.dgacta",
+  "extra": {
+    "station": "sb_el_ayoun",
+    "dataset": "station-climatique-sidi-bouzid-el-ayoun-dgacta",
+    "resource_id": "f5bf0f4b-01dc-44a0-8e67-52fa2c682e0e",
+    "resource_name": "Capteur d'humidité du sol à 20 cm de la station climatique",
+    "resource_last_modified": "2026-01-18T22:01:20.668933",
+    "http_last_modified": "Sun, 18 Jan 2026 22:01:20 GMT",
+    "node": "soil",
+    "depth_cm": "20"
+  },
+  "schema_version": "1.0"
+}

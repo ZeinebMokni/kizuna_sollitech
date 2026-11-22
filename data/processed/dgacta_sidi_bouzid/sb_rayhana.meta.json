@@ -1,0 +1,51 @@
+{
+  "zone": "processed",
+  "rows": 210,
+  "data_classes": [
+    "measured"
+  ],
+  "sources": [
+    "dgacta_sidi_bouzid"
+  ],
+  "sites": [
+    "sb_rayhana"
+  ],
+  "variables": [
+    "air_pressure",
+    "air_temperature",
+    "dew_point_temperature",
+    "et0_daily_station",
+    "et0_hourly_station",
+    "precipitation_counter",
+    "precipitation_daily",
+    "precipitation_intensity",
+    "relative_humidity",
+    "soil_moisture_signal_10cm",
+    "soil_moisture_signal_20cm",
+    "soil_moisture_signal_30cm",
+    "soil_temperature_10cm",
+    "soil_temperature_20cm",
+    "soil_temperature_30cm",
+    "soil_vwc_10cm",
+    "soil_vwc_20cm",
+    "soil_vwc_30cm",
+    "solar_radiation",
+    "wind_direction",
+    "wind_speed"
+  ],
+  "time_min_utc": "2026-06-12T23:00:00Z",
+  "time_max_utc": "2026-06-13T08:00:00Z",
+  "qc_counts": {
+    "valid": 180,
+    "suspect": 30
+  },
+  "raw_files_sha256": [
+    "107a3b938767c299c44d7a33417c972a9a34da27c8b89fc7e8c250e8896d0efa",
+    "56773565bd8bde5412723e028d75c44e7e93e50e0db47eceaf85d9cc2c060bf1",
+    "59cbb7d146d201675baada9869a888eb017c704359be8fd2091ea205edb12d43",
+    "8fb9cae634a28259bc0e49aa65dfe2f5251b9fff6fc93f03d2d1bbed32987319",
+    "e4179d21120d8c5bdae5c63007e0f2dbc78b10b4465f8a43fac70dce93588663"
+  ],
+  "written_at_utc": "2026-11-22T01:17:17.232531Z",
+  "schema_version": "1.0"
+}

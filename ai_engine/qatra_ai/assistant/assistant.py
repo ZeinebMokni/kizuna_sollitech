@@ -22,6 +22,7 @@ from qatra_ai.assistant.backends import (
     ANTHROPIC_MODEL,
     AnthropicBackend,
     Backend,
+    GeminiUnavailableError,
     MissingCredentialsError,
     make_backend,
 )
@@ -126,7 +127,7 @@ class QatraAssistant:
         for _ in range(MAX_ITERATIONS):
             try:
                 turn = self.backend.step()
-            except MissingCredentialsError as exc:
+            except (MissingCredentialsError, GeminiUnavailableError) as exc:
                 return self._template(lang, registry, calls, str(exc), last_violations)
             except Exception as exc:  # network/API failure -> deterministic answer
                 return self._template(

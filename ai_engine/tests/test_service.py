@@ -1,5 +1,6 @@
 """Service API tests with an OFFLINE provider (synthetic weather/soil) and a fake LLM client."""
 
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pandas as pd
@@ -10,7 +11,8 @@ import qatra_ai.service.app as service
 from qatra_ai.agronomy.soil import SoilWaterProperties
 from qatra_ai.assistant.assistant import QatraAssistant
 from qatra_ai.contracts import DataClass
-from qatra_ai.service.data import WeatherData
+from qatra_ai.farms.registry import PACKAGE_FARMS_DIR, load_registry
+from qatra_ai.service.data import WeatherData, WeatherUnavailableError
 
 
 def _weather(start, end):
@@ -31,17 +33,26 @@ def _weather(start, end):
 
 
 class OfflineProvider:
-    def season_weather(self):
+    """Synthetic weather and soil for any coordinates (test input, labelled simulated)."""
+
+    def __init__(self, fail_live=False):
+        self.fail_live = fail_live
+        self.calls = []
+
+    def weather(self, lat, lon, start, end):
+        self.calls.append(("weather", lat, lon, start, end))
+        return WeatherData(_weather(start, end), "synthetic", DataClass.SIMULATED, 400.0)
+
+    def live_weather(self, lat, lon, start, today):
+        self.calls.append(("live", lat, lon, start, today))
+        if self.fail_live:
+            raise WeatherUnavailableError("test: forecast service down")
+        end = today + timedelta(days=7)
         return WeatherData(
-            _weather("2025-03-01", "2025-09-10"), "synthetic", DataClass.SIMULATED, 400.0
+            _weather(start, end), "synthetic", DataClass.SIMULATED, 400.0, forecast_from=today
         )
 
-    def multi_year_weather(self):
-        return WeatherData(
-            _weather("2015-01-01", "2024-12-31"), "synthetic", DataClass.SIMULATED, 400.0
-        )
-
-    def soil(self):
+    def soil(self, lat, lon):
         return SoilWaterProperties(
             theta_fc=0.28,
             theta_wp=0.155,
@@ -53,7 +64,8 @@ class OfflineProvider:
 
 @pytest.fixture(scope="module")
 def client():
-    return TestClient(service.create_app(OfflineProvider()))
+    reg = load_registry([PACKAGE_FARMS_DIR])  # demo only: ignore the user's own farms
+    return TestClient(service.create_app(OfflineProvider(), registry=reg))
 
 
 def test_health_and_farm(client):
