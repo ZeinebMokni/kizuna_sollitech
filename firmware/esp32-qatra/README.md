@@ -35,10 +35,19 @@ It does not connect to QATRA until Wi-Fi, MQTT and sensor calibration are config
 ```powershell
 cd firmware/esp32-qatra
 copy include\qatra_config.h.example include\qatra_config.h
-pio run
-pio run --target upload
-pio device monitor
+python -m platformio run
+.\upload.ps1
+python -m platformio device monitor
 ```
+
+If `upload.ps1` cannot find a port, connect the ESP32 and run:
+
+```powershell
+python -m platformio device list
+python -m platformio run --target upload --upload-port COM5
+```
+
+Replace `COM5` with the detected serial port.
 
 Install PlatformIO Core or use PlatformIO in VS Code.
 
