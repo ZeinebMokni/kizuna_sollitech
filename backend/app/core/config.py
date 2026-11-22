@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _INSECURE_SECRET_MARKERS = ("change-me", "changeme", "secret")
@@ -26,10 +26,21 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     log_level: str = "INFO"
     engine_url: str = "http://127.0.0.1:8100"
-    mqtt_enabled: bool = False
-    mqtt_host: str = "127.0.0.1"
-    mqtt_port: int = 1883
-    mqtt_topic: str = "qatra/+/+/measurements/+"
+    mqtt_enabled: bool = Field(default=False, validation_alias="QATRA_MQTT_ENABLED")
+    mqtt_host: str = Field(default="127.0.0.1", validation_alias="QATRA_MQTT_HOST")
+    mqtt_port: int = Field(default=1883, validation_alias="QATRA_MQTT_PORT")
+    mqtt_topic: str = Field(
+        default="qatra/+/+/measurements/+",
+        validation_alias="QATRA_MQTT_TOPIC",
+    )
+    actuation_max_duration_s: int = Field(
+        default=2700,
+        validation_alias="QATRA_ACTUATION_MAX_DURATION_S",
+    )
+    actuation_max_volume_m3: float = Field(
+        default=100.0,
+        validation_alias="QATRA_ACTUATION_MAX_VOLUME_M3",
+    )
 
     login_max_failures: int = 5
     login_window_seconds: int = 900

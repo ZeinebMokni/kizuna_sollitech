@@ -160,3 +160,42 @@ class DeviceCommunication(Base, TimestampMixin):
         Index("ix_device_communications_device_time", "device_id", "received_at"),
         Index("ix_device_communications_status_time", "status", "received_at"),
     )
+
+
+class ActuationCommand(Base, TimestampMixin):
+    __tablename__ = "actuation_commands"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
+    farm_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("farms.id", ondelete="CASCADE")
+    )
+    device_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("devices.id", ondelete="CASCADE")
+    )
+    zone_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("irrigation_zones.id", ondelete="CASCADE")
+    )
+    requested_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    action: Mapped[str] = mapped_column(String(32))
+    duration_s: Mapped[int | None] = mapped_column()
+    max_volume_m3: Mapped[float | None] = mapped_column(Numeric(12, 3))
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    mqtt_topic: Mapped[str] = mapped_column(String(300))
+    payload_sha256: Mapped[str] = mapped_column(String(64))
+    signature: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledgement_status: Mapped[str | None] = mapped_column(String(32))
+    acknowledgement_detail: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("ix_actuation_commands_device_status", "device_id", "status"),
+        Index("ix_actuation_commands_farm_created", "farm_id", "created_at"),
+        Index("ix_actuation_commands_expiry", "expires_at"),
+    )

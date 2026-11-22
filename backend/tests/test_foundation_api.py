@@ -551,6 +551,115 @@ def test_advanced_satellite_climate_and_incident_evidence(monkeypatch):
     assert "not an allocation order" in allocation.json()["disclaimer"]
 
 
+def test_actuation_command_requires_human_approval_and_expires():
+    suffix = uuid.uuid4().hex
+    email = f"actuation-{suffix}@example.com"
+    assert client.post(
+        "/auth/register",
+        json={
+            "email": email,
+            "password": "A-strong-password-2026",
+            "full_name": "Actuation Farmer",
+        },
+    ).status_code == 201
+    login = client.post(
+        "/auth/login",
+        json={"email": email, "password": "A-strong-password-2026"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    farm = client.post(
+        "/farms",
+        headers=headers,
+        json={"name": f"Actuation Farm {suffix}", "code": f"AF-{suffix[:8]}"},
+    )
+    farm_id = farm.json()["id"]
+    parcel = client.post(
+        f"/farms/{farm_id}/parcels",
+        headers=headers,
+        json={
+            "name": "Actuation Parcel",
+            "boundary": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [9.40, 35.60],
+                    [9.41, 35.60],
+                    [9.41, 35.61],
+                    [9.40, 35.61],
+                    [9.40, 35.60],
+                ]],
+            },
+        },
+    )
+    parcel_id = parcel.json()["id"]
+    zone = client.post(
+        f"/farms/{farm_id}/parcels/{parcel_id}/zones",
+        headers=headers,
+        json={
+            "name": "Actuation Zone",
+            "irrigation_method": "drip",
+            "area_ha": "1.0000",
+        },
+    )
+    zone_id = zone.json()["id"]
+    device = client.post(
+        f"/farms/{farm_id}/devices",
+        headers=headers,
+        json={"external_id": f"actuator-{suffix}", "name": "Test actuator"},
+    )
+    device_id = device.json()["id"]
+
+    oversize = client.post(
+        f"/farms/{farm_id}/devices/{device_id}/commands",
+        headers=headers,
+        json={
+            "zone_id": zone_id,
+            "action": "open_valve",
+            "duration_s": 999999,
+        },
+    )
+    assert oversize.status_code == 422
+
+    created = client.post(
+        f"/farms/{farm_id}/devices/{device_id}/commands",
+        headers=headers,
+        json={
+            "zone_id": zone_id,
+            "action": "open_valve",
+            "duration_s": 300,
+            "max_volume_m3": "12.500",
+        },
+    )
+    assert created.status_code == 201, created.text
+    command = created.json()
+    assert command["status"] == "pending"
+    assert command["mqtt_topic"].endswith(f"/commands/{zone_id}")
+
+    class FakeMqttPublisher:
+        published = []
+
+        def publish(self, topic, payload):
+            self.published.append((topic, payload))
+
+    publisher = FakeMqttPublisher()
+    app.state.mqtt_service = publisher
+    approved = client.post(
+        f"/farms/{farm_id}/devices/{device_id}/commands/{command['id']}/approve",
+        headers=headers,
+        json={},
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "sent"
+    assert len(publisher.published) == 1
+
+    rejected = client.post(
+        f"/farms/{farm_id}/devices/{device_id}/commands/{command['id']}/reject",
+        headers=headers,
+        json={"reason": "too soon"},
+    )
+    assert rejected.status_code == 409
+
+
 def test_mqtt_topic_and_payload_validation():
     farm_id = uuid.uuid4()
     device_id = uuid.uuid4()

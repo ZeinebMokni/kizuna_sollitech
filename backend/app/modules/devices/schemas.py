@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -78,3 +79,24 @@ class IrrigationEventResponse(BaseModel):
     ended_at: datetime
     volume_m3: Decimal
     source: str
+
+
+class ActuationCommandCreate(BaseModel):
+    zone_id: UUID
+    action: Literal["open_valve", "close_valve", "start_pump", "stop_pump", "emergency_stop"]
+    duration_s: int | None = Field(default=None, ge=1)
+    max_volume_m3: Decimal | None = Field(default=None, gt=0)
+
+
+class ActuationCommandResponse(BaseModel):
+    id: UUID
+    zone_id: UUID
+    action: str
+    duration_s: int | None
+    max_volume_m3: Decimal | None
+    status: str
+    mqtt_topic: str
+    expires_at: datetime
+    sent_at: datetime | None
+    acknowledged_at: datetime | None
+    acknowledgement_status: str | None

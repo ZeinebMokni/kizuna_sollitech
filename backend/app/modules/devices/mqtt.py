@@ -13,6 +13,7 @@ from sqlalchemy import select
 from app.core.db import new_session
 from app.core.enums import DataClass, DeviceStatus, MeasurementQuality
 from app.modules.devices.models import (
+    ActuationCommand,
     Device,
     DeviceCommunication,
     Sensor,
@@ -89,9 +90,18 @@ class MqttTelemetryService:
         self.client.disconnect()
         self.client.loop_stop()
 
+    def publish(self, topic: str, payload: dict) -> None:
+        if not self.client.is_connected():
+            raise RuntimeError("MQTT broker is not connected")
+        message = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        result = self.client.publish(topic, message, qos=1, retain=False)
+        if result.rc != mqtt.MQTT_ERR_SUCCESS:
+            raise RuntimeError(f"MQTT publish failed: {result.rc}")
+
     def _on_connect(self, client, userdata, flags, reason_code, properties) -> None:
         if reason_code == 0:
             client.subscribe(self.topic, qos=1)
+            client.subscribe("qatra/+/+/ack/+", qos=1)
 
     def _record(
         self,
@@ -124,6 +134,74 @@ class MqttTelemetryService:
     def _on_message(self, client, userdata, message) -> None:
         topic = message.topic
         payload = bytes(message.payload)
+        if "/ack/" in topic:
+            parts = topic.strip("/").split("/")
+            if len(parts) != 5 or parts[:1] != ["qatra"] or parts[3] != "ack":
+                return
+            try:
+                farm_id = UUID(parts[1])
+                device_id = UUID(parts[2])
+                command_id = UUID(parts[4])
+                body = json.loads(payload)
+            except (ValueError, json.JSONDecodeError):
+                return
+            if not isinstance(body, dict):
+                return
+            db = new_session()
+            try:
+                device = db.get(Device, device_id)
+                command = db.get(ActuationCommand, command_id)
+                api_key = body.get("api_key")
+                status = str(body.get("status") or "")
+                if (
+                    device is None
+                    or device.farm_id != farm_id
+                    or not isinstance(api_key, str)
+                    or hashlib.sha256(api_key.encode()).hexdigest()
+                    != device.api_key_hash
+                    or command is None
+                    or command.farm_id != farm_id
+                    or command.device_id != device_id
+                    or status
+                    not in {
+                        "received",
+                        "started",
+                        "completed",
+                        "failed",
+                        "rejected",
+                        "stopped",
+                    }
+                ):
+                    return
+                command.acknowledgement_status = status
+                command.acknowledgement_detail = (
+                    str(body.get("detail"))[:2000]
+                    if body.get("detail")
+                    else None
+                )
+                command.acknowledged_at = datetime.now(UTC)
+                if status in {"completed", "stopped", "failed", "rejected"}:
+                    command.status = status
+                elif status in {"received", "started"}:
+                    command.status = "acknowledged"
+                device.last_seen_at = datetime.now(UTC)
+                db.add(
+                    DeviceCommunication(
+                        device_id=device_id,
+                        protocol="mqtt",
+                        topic=topic,
+                        event="acknowledgement",
+                        status=status,
+                        payload_sha256=hashlib.sha256(payload).hexdigest(),
+                        detail=command.acknowledgement_detail,
+                        received_at=datetime.now(UTC),
+                    )
+                )
+                db.commit()
+            finally:
+                db.close()
+            return
+
         try:
             farm_id, device_id, sensor_external_id = parse_topic(topic)
             body = parse_payload(payload)

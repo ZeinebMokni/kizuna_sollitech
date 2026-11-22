@@ -1,4 +1,8 @@
-from datetime import UTC, datetime
+import hashlib
+import hmac
+import json
+import secrets
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from ipaddress import ip_address
 from secrets import token_urlsafe
@@ -9,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.enums import (
     DataClass,
@@ -17,6 +22,7 @@ from app.core.enums import (
 )
 from app.core.errors import Conflict, Forbidden, NotFound, Unauthorized, Unprocessable
 from app.modules.devices.models import (
+    ActuationCommand,
     Device,
     DeviceCommunication,
     IrrigationEvent,
@@ -24,6 +30,8 @@ from app.modules.devices.models import (
     SensorMeasurement,
 )
 from app.modules.devices.schemas import (
+    ActuationCommandCreate,
+    ActuationCommandResponse,
     DeviceCreate,
     DeviceResponse,
     IrrigationEventCreate,
@@ -64,6 +72,249 @@ def _zone_for_farm(db: Session, farm_id: UUID, zone_id: UUID) -> IrrigationZone:
     if parcel is None or parcel.farm_id != farm_id:
         raise Forbidden("Zone does not belong to this farm")
     return zone
+
+
+def _command_response(row: ActuationCommand) -> ActuationCommandResponse:
+    return ActuationCommandResponse(
+        id=row.id,
+        zone_id=row.zone_id,
+        action=row.action,
+        duration_s=row.duration_s,
+        max_volume_m3=row.max_volume_m3,
+        status=row.status,
+        mqtt_topic=row.mqtt_topic,
+        expires_at=row.expires_at,
+        sent_at=row.sent_at,
+        acknowledged_at=row.acknowledged_at,
+        acknowledgement_status=row.acknowledgement_status,
+    )
+
+
+@router.post(
+    "/{farm_id}/devices/{device_id}/commands",
+    response_model=ActuationCommandResponse,
+    status_code=201,
+)
+def create_actuation_command(
+    farm_id: UUID,
+    device_id: UUID,
+    payload: ActuationCommandCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> ActuationCommandResponse:
+    _operator_member(db, farm_id, user)
+    device = db.get(Device, device_id)
+    if device is None or device.farm_id != farm_id:
+        raise NotFound("Device not found")
+    if device.status != DeviceStatus.ACTIVE:
+        raise Forbidden("Device is not active")
+    zone = _zone_for_farm(db, farm_id, payload.zone_id)
+
+    settings = get_settings()
+    if payload.action in {"open_valve", "start_pump"} and payload.duration_s is None:
+        raise Unprocessable("duration_s is required for open_valve and start_pump")
+    if payload.duration_s is not None and payload.duration_s > settings.actuation_max_duration_s:
+        raise Unprocessable(
+            f"duration_s exceeds safety limit {settings.actuation_max_duration_s}"
+        )
+    if (
+        payload.max_volume_m3 is not None
+        and float(payload.max_volume_m3) > settings.actuation_max_volume_m3
+    ):
+        raise Unprocessable(
+            f"max_volume_m3 exceeds safety limit {settings.actuation_max_volume_m3}"
+        )
+    if (
+        payload.action in {"close_valve", "stop_pump", "emergency_stop"}
+        and (payload.duration_s is not None or payload.max_volume_m3 is not None)
+    ):
+        raise Unprocessable(
+            "close, stop and emergency-stop commands cannot include runtime limits"
+        )
+
+    expires_at = datetime.now(UTC) + timedelta(minutes=5)
+    mqtt_topic = f"qatra/{farm_id}/{device_id}/commands/{zone.id}"
+    command_payload = {
+        "command_id": None,
+        "farm_id": str(farm_id),
+        "device_id": str(device_id),
+        "zone_id": str(zone.id),
+        "action": payload.action,
+        "duration_s": payload.duration_s,
+        "max_volume_m3": (
+            float(payload.max_volume_m3)
+            if payload.max_volume_m3 is not None
+            else None
+        ),
+        "expires_at": expires_at.isoformat(),
+    }
+    command_id = UUID(int=secrets.randbits(128), version=4)
+    command_payload["command_id"] = str(command_id)
+    canonical = json.dumps(command_payload, sort_keys=True, separators=(",", ":"))
+    payload_hash = hashlib.sha256(canonical.encode()).hexdigest()
+    secret = settings.jwt_secret.get_secret_value()
+    signature = hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+
+    command = ActuationCommand(
+        id=command_id,
+        farm_id=farm_id,
+        device_id=device_id,
+        zone_id=zone.id,
+        requested_by=user.id,
+        action=payload.action,
+        duration_s=payload.duration_s,
+        max_volume_m3=payload.max_volume_m3,
+        status="pending",
+        mqtt_topic=mqtt_topic,
+        payload_sha256=payload_hash,
+        signature=signature,
+        expires_at=expires_at,
+    )
+    db.add(command)
+    db.flush()
+    record_audit(
+        db,
+        action="request",
+        entity_type="actuation_command",
+        entity_id=command.id,
+        actor_user_id=user.id,
+        farm_id=farm_id,
+        after={
+            "device_id": str(device_id),
+            "zone_id": str(zone.id),
+            "action": payload.action,
+            "status": "pending",
+        },
+    )
+    db.commit()
+    db.refresh(command)
+    return _command_response(command)
+
+
+@router.post(
+    "/{farm_id}/devices/{device_id}/commands/{command_id}/approve",
+    response_model=ActuationCommandResponse,
+)
+def approve_actuation_command(
+    farm_id: UUID,
+    device_id: UUID,
+    command_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> ActuationCommandResponse:
+    _operator_member(db, farm_id, user)
+    command = db.get(ActuationCommand, command_id)
+    if (
+        command is None
+        or command.farm_id != farm_id
+        or command.device_id != device_id
+    ):
+        raise NotFound("Actuation command not found")
+    if command.status != "pending":
+        raise Conflict("Actuation command is no longer pending")
+    if command.expires_at <= datetime.now(UTC):
+        command.status = "expired"
+        db.commit()
+        raise Conflict("Actuation command expired")
+    if not hasattr(request.app.state, "mqtt_service"):
+        raise Unprocessable("MQTT command publisher is unavailable")
+
+    payload = {
+        "command_id": str(command.id),
+        "farm_id": str(command.farm_id),
+        "device_id": str(command.device_id),
+        "zone_id": str(command.zone_id),
+        "action": command.action,
+        "duration_s": command.duration_s,
+        "max_volume_m3": (
+            float(command.max_volume_m3)
+            if command.max_volume_m3 is not None
+            else None
+        ),
+        "expires_at": command.expires_at.isoformat(),
+        "signature": command.signature,
+    }
+    mqtt_service = request.app.state.mqtt_service
+    mqtt_service.publish(command.mqtt_topic, payload)
+
+    command.approved_by = user.id
+    command.status = "sent"
+    command.sent_at = datetime.now(UTC)
+    record_audit(
+        db,
+        action="approve",
+        entity_type="actuation_command",
+        entity_id=command.id,
+        actor_user_id=user.id,
+        farm_id=farm_id,
+        after={"status": "sent", "action": command.action},
+    )
+    db.commit()
+    db.refresh(command)
+    return _command_response(command)
+
+
+@router.post(
+    "/{farm_id}/devices/{device_id}/commands/{command_id}/reject",
+    response_model=ActuationCommandResponse,
+)
+def reject_actuation_command(
+    farm_id: UUID,
+    device_id: UUID,
+    command_id: UUID,
+    payload: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> ActuationCommandResponse:
+    _operator_member(db, farm_id, user)
+    command = db.get(ActuationCommand, command_id)
+    if (
+        command is None
+        or command.farm_id != farm_id
+        or command.device_id != device_id
+    ):
+        raise NotFound("Actuation command not found")
+    if command.status != "pending":
+        raise Conflict("Actuation command is no longer pending")
+    command.status = "rejected"
+    command.acknowledgement_detail = str(payload.get("reason") or "")[:2000] or None
+    record_audit(
+        db,
+        action="reject",
+        entity_type="actuation_command",
+        entity_id=command.id,
+        actor_user_id=user.id,
+        farm_id=farm_id,
+        after={"status": "rejected", "reason": command.acknowledgement_detail},
+    )
+    db.commit()
+    db.refresh(command)
+    return _command_response(command)
+
+
+@router.get(
+    "/{farm_id}/devices/{device_id}/commands",
+    response_model=list[ActuationCommandResponse],
+)
+def list_actuation_commands(
+    farm_id: UUID,
+    device_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[ActuationCommandResponse]:
+    _operator_member(db, farm_id, user)
+    device = db.get(Device, device_id)
+    if device is None or device.farm_id != farm_id:
+        raise NotFound("Device not found")
+    rows = list(
+        db.scalars(
+            select(ActuationCommand)
+            .where(ActuationCommand.device_id == device_id)
+            .order_by(ActuationCommand.created_at.desc())
+        )
+    )
+    return [_command_response(row) for row in rows]
 
 
 @router.get("/{farm_id}/devices/{device_id}/communications")

@@ -134,3 +134,19 @@ timezone, future timestamps and duplicate sensor/timestamp or idempotency keys.
 Accepted, duplicate and rejected deliveries are recorded in
 `device_communications`. The development broker allows anonymous network access;
 production deployments require Mosquitto authentication, TLS and ACL rules.
+
+## Controlled actuation
+
+Actuation commands are created as `pending`, require an operator/owner approval,
+expire after five minutes, and are capped by duration and volume configuration.
+Approval publishes an HMAC-signed MQTT command; it does not bypass local hardware
+safety interlocks.
+
+- `POST /farms/{farm_id}/devices/{device_id}/commands`
+- `POST /farms/{farm_id}/devices/{device_id}/commands/{command_id}/approve`
+- `POST /farms/{farm_id}/devices/{device_id}/commands/{command_id}/reject`
+- `GET /farms/{farm_id}/devices/{device_id}/commands`
+
+Supported actions are `open_valve`, `close_valve`, `start_pump`,
+`stop_pump` and `emergency_stop`. Opening or starting requires a duration.
+Close, stop and emergency-stop commands cannot include runtime limits.
