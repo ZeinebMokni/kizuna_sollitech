@@ -8,6 +8,7 @@ Usage: uv run python examples/climate_2050.py   (first run downloads ~600 small 
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 
@@ -54,16 +55,28 @@ def main() -> None:
     baseline = power.daily
     soil = fetch_soilgrids(LAT, LON).to_soil_properties().model_copy(update={"soil_depth_m": 1.5})
     site = SiteConditions(
-        latitude=LAT, soil=soil, irrigation_water_ec_ds_m=1.5, available_water_m3_per_ha=6000,
-        available_energy_kwh_per_ha=3000, pumping_head_m=60, weather_source=power.source,
-        weather_data_class=power.data_class)
+        latitude=LAT,
+        soil=soil,
+        irrigation_water_ec_ds_m=1.5,
+        available_water_m3_per_ha=6000,
+        available_energy_kwh_per_ha=3000,
+        pumping_head_m=60,
+        weather_source=power.source,
+        weather_data_class=power.data_class,
+    )
 
     scenarios = [
         Scenario("baseline 1995-2014", "historical", source=power.source),
-        Scenario("stress test: +2 C, -20 % rain", "hypothetical",
-                 MonthlyDeltas.uniform(dt=2.0, precip_pct=-20)),
-        Scenario("stress test: +3 C, -30 % rain", "hypothetical",
-                 MonthlyDeltas.uniform(dt=3.0, precip_pct=-30)),
+        Scenario(
+            "stress test: +2 C, -20 % rain",
+            "hypothetical",
+            MonthlyDeltas.uniform(dt=2.0, precip_pct=-20),
+        ),
+        Scenario(
+            "stress test: +3 C, -30 % rain",
+            "hypothetical",
+            MonthlyDeltas.uniform(dt=3.0, precip_pct=-30),
+        ),
     ]
     client = NexGddpClient(CACHE)
     failed = []
@@ -81,23 +94,63 @@ def main() -> None:
                     failed.append(f"{model} {ssp}: {exc}")
                     continue
                 d = monthly_deltas(hist, fut)
-                scenarios.append(Scenario(f"{model} {ssp} 2041-2060", "projected", d, ssp=ssp,
-                                          model=model, window="2041-2060 vs 1995-2014",
-                                          source="NASA NEX-GDDP-CMIP6"))
+                scenarios.append(
+                    Scenario(
+                        f"{model} {ssp} 2041-2060",
+                        "projected",
+                        d,
+                        ssp=ssp,
+                        model=model,
+                        window="2041-2060 vs 1995-2014",
+                        source="NASA NEX-GDDP-CMIP6",
+                    )
+                )
                 print(f"{model} {ssp}: {d.annual_summary()}", flush=True)
     finally:
         client.close()
 
-    imp = run_impacts(baseline, scenarios, CROPS, site, latitude=power.latitude,
-                      elevation_m=power.elevation_m or 0.0)
+    imp = run_impacts(
+        baseline,
+        scenarios,
+        CROPS,
+        site,
+        latitude=power.latitude,
+        elevation_m=power.elevation_m or 0.0,
+    )
     t = imp.table
-    deltas = t.drop_duplicates("scenario")[["scenario", "kind", "et0_annual_mm", "dtmax_mean_c",
-                                            "dtmin_mean_c", "precip_ratio_mean", "rs_ratio_mean"]]
-    cols = ["scenario", "kind", "crop", "overall", "irrigation_p50_m3_ha",
-            "irrigation_p50_m3_ha_change_pct", "irrigation_p80_m3_ha",
-            "irrigation_p80_m3_ha_change_pct", "expected_relative_yield", "heat_days"]
+    deltas = t.drop_duplicates("scenario")[
+        [
+            "scenario",
+            "kind",
+            "et0_annual_mm",
+            "dtmax_mean_c",
+            "dtmin_mean_c",
+            "precip_ratio_mean",
+            "rs_ratio_mean",
+        ]
+    ]
+    cols = [
+        "scenario",
+        "kind",
+        "crop",
+        "overall",
+        "irrigation_p50_m3_ha",
+        "irrigation_p50_m3_ha_change_pct",
+        "irrigation_p80_m3_ha",
+        "irrigation_p80_m3_ha_change_pct",
+        "expected_relative_yield",
+        "heat_days",
+    ]
     REPORT.parent.mkdir(parents=True, exist_ok=True)
-    REPORT.write_text(f"""# Climate 2050 scenarios: farmland west of Sidi Bouzid (35.10 N, 9.30 E)
+    # Keep a hand-written "## Findings" section across regenerations.
+    findings = ""
+    if REPORT.exists():
+        old_text = REPORT.read_text(encoding="utf-8")
+        marker = "\n## Findings"
+        if marker in old_text:
+            findings = old_text[old_text.index(marker) :]
+    REPORT.write_text(
+        f"""# Climate 2050 scenarios: farmland west of Sidi Bouzid (35.10 N, 9.30 E)
 
 > **Scenarios, not forecasts.** *Projected* rows apply one climate model's change signal to the
 > observed baseline (delta-change); the spread across models is the message, not any single
@@ -126,7 +179,30 @@ def main() -> None:
 {chr(10).join("- " + x for x in LIMITATIONS)}
 - Every second year sampled per 20-year window to limit download volume.
 - Groundwater response is not simulated (aquifer parameters are not available).
-""", encoding="utf-8")
+"""
+        + findings,
+        encoding="utf-8",
+    )
+    # Machine-readable results for the dashboard API (qatra_ai.service).
+    results_dir = Path(__file__).resolve().parents[1] / ".cache" / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    ens = imp.ensemble.copy()
+    ens.columns = ["_".join(c).strip("_") if isinstance(c, tuple) else c for c in ens.columns]
+    (results_dir / "climate_2050.json").write_text(
+        json.dumps(
+            {
+                "location": {"latitude": LAT, "longitude": LON},
+                "models": MODELS,
+                "ssps": SSPS,
+                "not_retrieved": failed,
+                "scenarios": json.loads(t.to_json(orient="records")),
+                "ensemble": json.loads(ens.reset_index().to_json(orient="records")),
+                "limitations": LIMITATIONS,
+                "farm_note": "hypothetical quota 6000 m3/ha, 3000 kWh/ha, ECw 1.5 dS/m, soil 1.5 m",
+            }
+        ),
+        encoding="utf-8",
+    )
     print(imp.ensemble.to_string())
     print(f"\nReport written to {REPORT}")
 

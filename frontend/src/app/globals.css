@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* QATRA palette: deep green (decisions), natural green (crops), water blue, earth neutrals,
+   clay for warnings. Light theme; data colours chosen to stay distinguishable. */
+:root {
+  --background: #f6f3ec;
+  --surface: #ffffff;
+  --foreground: #1c2620;
+  --muted: #5f6b63;
+  --line: #e2ddd1;
+  --green-deep: #1f4d3a;
+  --green: #3f7d4e;
+  --water: #2f6f9f;
+  --clay: #b5651d;
+  --danger: #a63a2b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-green-deep: var(--green-deep);
+  --color-leaf: var(--green);
+  --color-water: var(--water);
+  --color-clay: var(--clay);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}

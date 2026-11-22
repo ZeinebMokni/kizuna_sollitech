@@ -44,6 +44,7 @@ from qatra_ai.optimization.schedule_models import (
     EnergySupply,
     PriorityPolicy,
     PumpSystem,
+    SchedulePlan,
     ScheduleRequest,
     WaterSource,
 )
@@ -138,6 +139,8 @@ class FarmDecision(BaseModel):
     schedule_status: str | None
     anomalies_detected: int
     notes: list[str]
+    schedule: SchedulePlan | None = None
+    schedule_start: datetime | None = None
 
 
 TIER_LABELS = {0: "safety", 1: "irreversible risk", 2: "stress within horizon", 3: "no action"}
@@ -530,6 +533,8 @@ def decide(ctx: FarmContext, request_id: str | None = None) -> EngineEnvelope[Fa
         schedule_status=plan.status if plan else None,
         anomalies_detected=len(events),
         notes=notes,
+        schedule=plan,
+        schedule_start=ctx.as_of if plan else None,
     )
     snapshot = {
         "farm": ctx.farm_id,
