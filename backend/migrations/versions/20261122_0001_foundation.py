@@ -60,6 +60,7 @@ def upgrade() -> None:
     from app.core import audit as audit_models  # noqa: F401
     from app.core.db import Base
     from app.modules.data_sources import models as data_source_models  # noqa: F401
+    from app.modules.data_sources import models_observations as observation_models  # noqa: F401
     from app.modules.farms import models as farm_models  # noqa: F401
     from app.modules.identity import models as identity_models  # noqa: F401
 

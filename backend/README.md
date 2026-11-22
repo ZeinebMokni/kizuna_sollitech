@@ -52,5 +52,16 @@ The test database is created with PostGIS and TimescaleDB by `infra/db/init/01-i
 - `POST /farms/{farm_id}/parcels`
 - `POST /farms/{farm_id}/parcels/{parcel_id}/zones`
 
+## Phase 2 data integration endpoints
+
+- `GET /data/sources`
+- `POST /data/weather`
+- `GET /data/weather?start=YYYY-MM-DD&end=YYYY-MM-DD`
+
+Weather observations require a registered source, timezone-aware retrieval timestamp,
+WGS84 coordinates and an explicit data class. Duplicate source/point/date observations
+are rejected. Public provider readers remain in `ai_engine`; this API stores normalized
+readings and provenance.
+
 Authentication uses a bearer access token. Farm operations are restricted to platform
 administrators or the user's farm membership.

@@ -94,3 +94,61 @@ def test_register_login_and_farm_crud():
     listing = client.get("/farms", headers=headers)
     assert listing.status_code == 200
     assert any(item["id"] == farm_id for item in listing.json())
+
+
+def test_weather_provenance_and_duplicate_rejection():
+    suffix = uuid.uuid4().hex
+    email = f"weather-{suffix}@example.com"
+    registration = client.post(
+        "/auth/register",
+        json={
+            "email": email,
+            "password": "A-strong-password-2026",
+            "full_name": "Weather Farmer",
+        },
+    )
+    assert registration.status_code == 201
+    login = client.post(
+        "/auth/login",
+        json={"email": email, "password": "A-strong-password-2026"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    sources = client.get("/data/sources", headers=headers)
+    assert sources.status_code == 200
+    assert "nasa_power" in {s["code"] for s in sources.json()}
+
+    payload = {
+        "observation_date": "2026-11-22",
+        "latitude": "35.10000",
+        "longitude": "9.30000",
+        "tmin_c": "12.5",
+        "tmax_c": "24.0",
+        "precipitation_mm": "0",
+        "solar_radiation_mj_m2_day": "18.25",
+        "wind_m_s": "2.4",
+        "et0_mm": "3.1",
+        "source_code": "nasa_power",
+        "data_class": "inferred",
+        "retrieved_at": "2026-11-22T05:00:00Z",
+        "method": "NASA POWER daily point retrieval",
+    }
+    first = client.post("/data/weather", headers=headers, json=payload)
+    assert first.status_code == 201, first.text
+    assert first.json()["source_code"] == "nasa_power"
+
+    duplicate = client.post("/data/weather", headers=headers, json=payload)
+    assert duplicate.status_code == 409
+
+    listing = client.get(
+        "/data/weather",
+        headers=headers,
+        params={
+            "start": "2026-11-22",
+            "end": "2026-11-22",
+            "latitude": "35.10000",
+            "longitude": "9.30000",
+        },
+    )
+    assert listing.status_code == 200
+    assert len(listing.json()) == 1
