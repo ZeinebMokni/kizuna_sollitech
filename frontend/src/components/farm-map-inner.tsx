@@ -1,7 +1,8 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { MapContainer, Polygon, TileLayer, Tooltip } from "react-leaflet";
+import { useEffect } from "react";
+import { MapContainer, Polygon, TileLayer, Tooltip, useMap } from "react-leaflet";
 import type { Zone } from "@/lib/api";
 
 const ACTION_COLOR: Record<string, string> = {
@@ -10,6 +11,14 @@ const ACTION_COLOR: Record<string, string> = {
   hold_zone: "#a63a2b",
   no_action: "#3f7d4e",
 };
+
+function MapLifecycle() {
+  const map = useMap();
+  useEffect(() => {
+    map.invalidateSize();
+  }, [map]);
+  return null;
+}
 
 export default function FarmMapInner({
   center,
@@ -20,8 +29,16 @@ export default function FarmMapInner({
   zones: Zone[];
   actions: Record<string, string>;
 }) {
+  const mapKey = `${center[0]}:${center[1]}:${zones.map((z) => z.zone_id).join(",")}`;
   return (
-    <MapContainer center={center} zoom={16} scrollWheelZoom={false} className="h-80 w-full rounded-lg">
+    <MapContainer
+      key={mapKey}
+      center={center}
+      zoom={16}
+      scrollWheelZoom={false}
+      className="h-80 w-full rounded-lg"
+    >
+      <MapLifecycle />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"

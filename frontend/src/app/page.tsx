@@ -52,7 +52,12 @@ export default function Overview() {
         <div className="space-y-4 lg:col-span-2">
           <Card title="Farm layout" subtitle="Zone colour = today's decision. Layout is hypothetical.">
             {farm.data ? (
-              <FarmMap center={[farm.data.data.latitude, farm.data.data.longitude]} zones={farm.data.data.zones} actions={actions} />
+              <FarmMap
+                key={farmId}
+                center={[farm.data.data.latitude, farm.data.data.longitude]}
+                zones={farm.data.data.zones}
+                actions={actions}
+              />
             ) : (
               <Loading what="map" />
             )}
