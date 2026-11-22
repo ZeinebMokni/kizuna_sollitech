@@ -9,3 +9,6 @@ backend/.env
 node_modules/
 *.tsbuildinfo
 backend/__pycache__/
+
+# PDF rendering intermediates
+tmp/

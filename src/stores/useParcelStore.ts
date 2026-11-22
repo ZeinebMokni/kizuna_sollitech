@@ -38,6 +38,7 @@ interface ParcelState {
   createParcelFromDraft: (input: NewParcelInput) => Parcel | null;
   removeParcel: (id: string) => void;
   clearLastCreated: () => void;
+  toggleParcelIrrigation: (id: string) => void;
 }
 
 export const useParcelStore = create<ParcelState>()(
@@ -78,6 +79,7 @@ export const useParcelStore = create<ParcelState>()(
           delegation: DEMO_FARM.delegation,
           createdAt: new Date().toISOString(),
           source: draft.source,
+          irrigationActive: false,
         };
         set({
           parcels: [...parcels, parcel],
@@ -97,6 +99,10 @@ export const useParcelStore = create<ParcelState>()(
         })),
 
       clearLastCreated: () => set({ lastCreatedId: null }),
+
+      toggleParcelIrrigation: (id) => set((state) => ({
+        parcels: state.parcels.map((parcel) => parcel.id === id ? { ...parcel, irrigationActive: !parcel.irrigationActive } : parcel),
+      })),
     }),
     {
       name: 'qatra-parcels',

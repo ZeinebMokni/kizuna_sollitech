@@ -35,6 +35,7 @@ import { AgriculturalZoneLayer } from './AgriculturalZoneLayer';
 import { SensorMarkerLayer } from './SensorMarkerLayer';
 import { IrrigationLayer } from './IrrigationLayer';
 import { WaterNetworkLegend } from './WaterNetworkLegend';
+import { ForecastHorizonBar } from './ForecastHorizonBar';
 import { AlertLayer } from './AlertLayer';
 import { SolarPanelLayer } from './SolarPanelLayer';
 import { SolarEnergyLegend } from './SolarEnergyLegend';
@@ -596,6 +597,11 @@ export function FarmMap() {
           {mapLayerMode === 'elevation' && <ElevationLegend />}
           {mapLayerMode === 'historical' && <HistoricalComparison />}
           {mapLayerMode === 'energy' && <SolarEnergyLegend />}
+        </div>
+
+        {/* Future forecast horizon control — visual placeholder for later functionality */}
+        <div className="absolute bottom-4 right-4 z-20">
+          <ForecastHorizonBar />
         </div>
 
         {/* Interactive Drawing notification */}

@@ -5,12 +5,13 @@ import { motion, useInView, useAnimation } from 'framer-motion';
 import {
   Droplets, Sun, TrendingUp, TrendingDown,
   FileSpreadsheet, BarChart3, Zap, Sprout,
-  Battery, Activity
+  Battery, Activity, CheckCircle2, ChevronRight, CalendarDays, Info
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useFarmStore } from '@/stores/useFarmStore';
 import { DEMO_HOURLY_ENERGY, DEMO_WATER_BASELINE } from '@/lib/mockData';
 import { cn, formatNumber } from '@/lib/utils';
+import type { Farm } from '@/types';
 
 /* ─── Smooth bezier curve from points ─────────────────────────────────── */
 function smoothPath(pts: [number, number][]): string {
@@ -477,6 +478,80 @@ function ZoneYieldChart({ zones }: { zones: any[] }) {
 /* ════════════════════════════════════════════════════════════════════════
    KPI STAT CARD
    ════════════════════════════════════════════════════════════════════════ */
+function CombinedPerformanceChart({ savedPct, zones, selectedZone, horizon, liveTick }: { savedPct: number; zones: Farm['zones']; selectedZone: string; horizon: number; liveTick: number }) {
+  const W = 760; const H = 280; const pad = { top: 22, right: 26, bottom: 38, left: 42 };
+  const chartW = W - pad.left - pad.right; const chartH = H - pad.top - pad.bottom;
+  const days = ['J-6', 'J-5', 'J-4', 'J-3', 'J-2', 'J-1', 'Aujourd’hui'];
+  const live = (liveTick % 3) - 1;
+  const zoneFactor = selectedZone === 'all' ? 1 : Math.max(0.7, (zones.find((zone) => zone.id === selectedZone)?.dailyWaterLiters ?? 1) / Math.max(...zones.map((zone) => zone.dailyWaterLiters)));
+  const water = DEMO_WATER_BASELINE.last7DaysLiters.map((value) => Math.max(0, Math.min(100, Math.round((1 - value / DEMO_WATER_BASELINE.classicIrrigationLitersPerDay) * 100 * zoneFactor + live))));
+  const horizonFactor = horizon === 7 ? 1 : horizon === 14 ? 1.08 : 1.16;
+  const energy = [62, 68, 73, 78, 82, 86, 89].map((value) => Math.min(100, Math.round(value * horizonFactor + live)));
+  const impact = [18, 21, 24, 28, 31, 35, Math.max(35, savedPct)].map((value) => Math.min(100, Math.round(value * zoneFactor)));
+  const prediction = [20, 24, 27, 31, 35, 38, Math.min(100, Math.max(38, savedPct + 3))].map((value) => Math.min(100, Math.round(value * horizonFactor)));
+  const x = (index: number) => pad.left + (index / (days.length - 1)) * chartW;
+  const y = (value: number) => pad.top + chartH - (value / 100) * chartH;
+  const path = (values: number[]) => values.map((value, index) => (index === 0 ? 'M ' : 'L ') + x(index).toFixed(1) + ' ' + y(value).toFixed(1)).join(' ');
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-earth-400"><span>Indice comparatif 0–100 · chaque courbe est ramenée à sa propre unité</span><span className="flex items-center gap-1.5"><Info className="h-3 w-3 text-water-400" /> Pointillés = prévision système</span></div>
+      <svg viewBox={'0 0 ' + W + ' ' + H} className="h-auto w-full" role="img" aria-label="Courbes combinées de l’eau, de l’énergie et de l’impact agronomique">
+        {Array.from({ length: 5 }).map((_, index) => { const value = index * 25; return <g key={value}><line x1={pad.left} x2={W - pad.right} y1={y(value)} y2={y(value)} stroke="currentColor" strokeOpacity="0.1" /><text x={pad.left - 8} y={y(value) + 3} textAnchor="end" fontSize="9" fill="currentColor" fillOpacity="0.5">{value}</text></g>; })}
+        <path d={path(water)} fill="none" stroke="#2BB3CB" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={path(energy)} fill="none" stroke="#E2AE48" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={path(impact)} fill="none" stroke="#4DBF98" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={path(prediction)} fill="none" stroke="#E06A5A" strokeWidth="2" strokeDasharray="7 5" strokeLinecap="round" />
+        {days.map((day, index) => <g key={day}><line x1={x(index)} x2={x(index)} y1={pad.top + chartH} y2={pad.top + chartH + 5} stroke="currentColor" strokeOpacity="0.3" /><text x={x(index)} y={H - 10} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{day}</text></g>)}
+        {[water, energy, impact].map((series, seriesIndex) => series.map((value, index) => <circle key={seriesIndex + '-' + index} cx={x(index)} cy={y(value)} r="3.5" fill={seriesIndex === 0 ? '#2BB3CB' : seriesIndex === 1 ? '#E2AE48' : '#4DBF98'} stroke="#0e3c48" strokeWidth="1.5" />))}
+      </svg>
+      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[10px] text-earth-400"><span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-water-500" /> Eau économisée</span><span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-sun-500" /> Autonomie énergie</span><span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-brand-500" /> Impact réel</span><span className="flex items-center gap-1.5"><span className="h-0.5 w-5 border-t-2 border-dashed border-alert-500" /> Impact prévu</span></div>
+    </div>
+  );
+}
+
+type AnalysisPacket = { id: string; label: string; icon: React.ElementType; prediction: string; observed: string; impact: string; difference: string; sources: string[]; days: { day: string; system: string; real: string; status: string }[] };
+
+function AnalysisPackets({ selectedPacket, setSelectedPacket, farm, totalWater, totalEnergy, totalYield, baseline }: { selectedPacket: string; setSelectedPacket: (id: string) => void; farm: Farm; totalWater: number; totalEnergy: number; totalYield: number; baseline: number }) {
+  const criticalZones = farm.zones.filter((zone) => zone.status === 'critical').length;
+  const savedPct = Math.round(((baseline - totalWater) / baseline) * 100);
+  const packets: AnalysisPacket[] = [
+    { id: 'water', label: 'Eau & irrigation', icon: Droplets, prediction: 'Réduction de 38 % vs classique', observed: 'Réduction réelle de ' + savedPct + ' %', impact: formatNumber(Math.max(0, baseline - totalWater)) + ' L économisés aujourd’hui', difference: (savedPct - 38 >= 0 ? '+' : '') + (savedPct - 38) + ' point(s) vs prévision', sources: ['Compteurs d’eau', 'Sondes humidité', 'Référence irrigation classique'], days: ['J-2', 'J-1', 'Aujourd’hui'].map((day, index) => ({ day, system: '-' + (35 + index * 2) + ' %', real: '-' + (32 + index * 3) + ' %', status: index === 2 ? 'confirmé' : 'observé' })) },
+    { id: 'energy', label: 'Énergie solaire', icon: Zap, prediction: 'Autoconsommation attendue : 90 %', observed: 'Autoconsommation observée : 89 %', impact: formatNumber(totalEnergy, 1) + ' kWh utilisés par jour par les zones', difference: '-1 point vs prévision', sources: ['Onduleur photovoltaïque', 'BMS batterie', 'Pompe submersible'], days: ['08:00', '10:00', '12:00'].map((day, index) => ({ day, system: ['70 %', '84 %', '90 %'][index], real: ['68 %', '82 %', '89 %'][index], status: 'mesuré' })) },
+    { id: 'yield', label: 'Rendement', icon: Sprout, prediction: formatNumber(totalYield, 1) + ' T projetées', observed: 'Récolte non clôturée', impact: 'Impact réel à confirmer à la récolte', difference: 'Pas encore comparable', sources: ['Prévision par zone', 'NDVI Sentinel-2', 'Historique parcelle'], days: farm.zones.slice(0, 3).map((zone) => ({ day: zone.name.split(' - ')[0], system: formatNumber(zone.yieldEstimateTons, 1) + ' T', real: 'En suivi', status: zone.status === 'critical' ? 'risque' : 'stable' })) },
+    { id: 'zones', label: 'Zones & décisions', icon: BarChart3, prediction: criticalZones + ' zone(s) à traiter', observed: farm.zones.filter((zone) => zone.irrigationStatus === 'active').length + ' cycle(s) actif(s)', impact: criticalZones ? 'Risque concentré sur les zones critiques' : 'Impact réparti et sous contrôle', difference: 'À vérifier après intervention humaine', sources: ['État des zones', 'Journal irrigation', 'Décisions agents'], days: farm.zones.map((zone) => ({ day: zone.name.split(' - ')[0], system: zone.targetMoistureMin + '% seuil', real: zone.soilMoisturePercent + '% actuel', status: zone.status })) },
+  ];
+  const packet = packets.find((item) => item.id === selectedPacket) ?? packets[0];
+  const PacketIcon = packet.icon;
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <div className="border-b border-line px-5 py-4"><div className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-water-400" /><div><h2 className="text-sm font-bold text-ink">Paquets d’analyse · un par un</h2><p className="mt-0.5 text-[11px] text-earth-400">Sélectionnez un paquet pour comparer prévision, résultat réel et impact.</p></div></div></div>
+      <div className="grid lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="divide-y divide-line border-b border-line lg:border-b-0 lg:border-r">{packets.map((item) => { const Icon = item.icon; return <button key={item.id} onClick={() => setSelectedPacket(item.id)} className={cn('flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors', selectedPacket === item.id ? 'bg-water-500/10' : 'hover:bg-raised')}><span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', selectedPacket === item.id ? 'bg-water-500/15 text-water-400' : 'bg-earth-800 text-earth-400')}><Icon className="h-4 w-4" /></span><span className="min-w-0"><span className="block truncate text-xs font-semibold text-ink">{item.label}</span><span className="mt-0.5 block text-[10px] text-earth-500">analyse disponible</span></span><ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-earth-500" /></button>; })}</div>
+        <div className="p-4"><div className="flex flex-col gap-3 border-b border-line pb-3 sm:flex-row sm:items-start sm:justify-between"><div className="flex items-center gap-2"><PacketIcon className="h-4 w-4 text-water-400" /><div><h3 className="text-sm font-bold text-ink">{packet.label}</h3><p className="mt-0.5 text-[11px] text-earth-400">Impact suivi dans le système</p></div></div><span className="rounded-full bg-brand-500/10 px-2 py-1 text-[10px] font-semibold text-brand-400">Paquet sélectionné</span></div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3"><CompareFact label="Prévision système" value={packet.prediction} /><CompareFact label="Résultat observé" value={packet.observed} tone="real" /><CompareFact label="Impact / écart" value={packet.difference} tone={packet.difference.includes('-') ? 'warning' : 'impact'} /></div>
+          <div className="mt-3 rounded-lg bg-water-500/5 p-3 text-xs text-earth-300"><span className="font-semibold text-ink">Impact réel :</span> {packet.impact}</div>
+          <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[420px] text-left text-[10px]"><thead className="border-b border-line text-earth-500"><tr><th className="px-2 py-2 font-semibold">Jour / point</th><th className="px-2 py-2 font-semibold">Système prédit</th><th className="px-2 py-2 font-semibold">Résultat réel</th><th className="px-2 py-2 font-semibold">État</th></tr></thead><tbody className="divide-y divide-line">{packet.days.map((row) => <tr key={row.day}><td className="px-2 py-2 font-semibold text-ink">{row.day}</td><td className="px-2 py-2 text-earth-300">{row.system}</td><td className="px-2 py-2 text-brand-400">{row.real}</td><td className="px-2 py-2 text-earth-400">{row.status}</td></tr>)}</tbody></table></div>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3"><span className="text-[10px] font-semibold text-earth-500">Sources du paquet :</span>{packet.sources.map((source) => <span key={source} className="rounded bg-brand-500/10 px-1.5 py-1 text-[9px] text-brand-400">{source}</span>)}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CompareFact({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'real' | 'warning' | 'impact' }) {
+  return <div className={cn('rounded-lg border p-3', tone === 'real' ? 'border-brand-500/30 bg-brand-500/5' : tone === 'warning' ? 'border-sun-500/30 bg-sun-500/5' : tone === 'impact' ? 'border-water-500/30 bg-water-500/5' : 'border-line bg-raised')}><p className="text-[10px] text-earth-500">{label}</p><p className={cn('mt-1 text-xs font-bold', tone === 'real' ? 'text-brand-400' : tone === 'warning' ? 'text-sun-400' : tone === 'impact' ? 'text-water-400' : 'text-ink')}>{value}</p></div>;
+}
+
+function ZoneCurveCard({ zone, liveTick }: { zone: Farm['zones'][number]; liveTick: number }) {
+  const offset = (liveTick % 3) - 1;
+  const values = Array.from({ length: 8 }, (_, index) => Math.max(8, Math.min(95, zone.soilMoisturePercent + (index - 7) * 1.8 + offset)));
+  const points = values.map((value, index) => `${index * 14 + 4},${74 - value * 0.62}`).join(' ');
+  const color = zone.status === 'critical' ? '#EE7B6B' : zone.status === 'irrigating' ? '#2BB3CB' : '#4DBF98';
+  return <article className="rounded-xl border border-line bg-surface p-3 transition-all hover:-translate-y-0.5 hover:border-water-500/40"><div className="flex items-start justify-between gap-2"><div><p className="text-[10px] font-semibold uppercase tracking-wider text-earth-500">{zone.name.split(' - ')[0]}</p><p className="mt-0.5 truncate text-xs font-bold text-ink">{zone.cropType}</p></div><span className="rounded-full px-2 py-1 text-[9px] font-bold" style={{ color, backgroundColor: `${color}18` }}>{zone.soilMoisturePercent}%</span></div><svg viewBox="0 0 102 78" className="mt-3 h-20 w-full overflow-visible"><path d="M 4 74 L 102 74" stroke="currentColor" strokeOpacity=".12" /><polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><circle cx="102" cy={74 - values[7] * 0.62} r="3.5" fill={color} /></svg><div className="mt-2 flex justify-between text-[10px] text-earth-400"><span>Eau {formatNumber(zone.dailyWaterLiters)} L/j</span><span>{zone.dailyEnergyKwh} kWh/j</span></div></article>;
+}
+
 function StatCard({ icon: Icon, label, value, sub, color, trend }: {
   icon: React.ElementType; label: string; value: string; sub: string;
   color: string; trend?: 'up' | 'down' | 'neutral';
@@ -533,6 +608,15 @@ function ChartCard({ title, icon: Icon, iconColor, children }: {
 export default function AnalyticsPage() {
   const { farm } = useFarmStore();
   const [exported, setExported] = useState(false);
+  const [selectedPacket, setSelectedPacket] = useState('water');
+  const [selectedZone, setSelectedZone] = useState('all');
+  const [horizon, setHorizon] = useState(7);
+  const [liveTick, setLiveTick] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setLiveTick((value) => value + 1), 5000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const totalWater = farm.zones.reduce((s, z) => s + z.dailyWaterLiters, 0);
   const totalEnergy = farm.zones.reduce((s, z) => s + z.dailyEnergyKwh, 0);
@@ -578,25 +662,19 @@ export default function AnalyticsPage() {
 
 
 
-        {/* Row 1: Water trend + Energy profile */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <ChartCard title="Consommation Eau — Tendance 7 Jours" icon={Droplets} iconColor="bg-water-500">
-            <WaterTrendChart />
-          </ChartCard>
-          <ChartCard title="Profil Énergétique Horaire — Aujourd'hui" icon={Zap} iconColor="bg-sun-500">
-            <EnergyProfileChart />
-          </ChartCard>
-        </div>
+        <ChartCard title="Performance intégrée · courbes vivantes" icon={TrendingUp} iconColor="bg-water-500">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-raised p-2">
+            <div className="flex flex-wrap gap-1.5">{[7, 14, 30].map((value) => <button key={value} onClick={() => setHorizon(value)} className={cn('rounded-lg px-2.5 py-1.5 text-[10px] font-bold', horizon === value ? 'bg-accent text-on-accent' : 'text-earth-400 hover:bg-surface')}>{value} jours</button>)}</div>
+            <select value={selectedZone} onChange={(event) => setSelectedZone(event.target.value)} className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[10px] font-semibold text-ink outline-none"><option value="all">Toutes les zones</option>{farm.zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name.split(' - ')[0]}</option>)}</select>
+          </div>
+          <CombinedPerformanceChart savedPct={savedPct} zones={farm.zones} selectedZone={selectedZone} horizon={horizon} liveTick={liveTick} />
+        </ChartCard>
 
-        {/* Row 2: Zone bars + Yield bars */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <ChartCard title="Eau par Zone (L/jour) · Humidité Sol" icon={BarChart3} iconColor="bg-water-600">
-            <ZoneWaterChart zones={farm.zones} />
-          </ChartCard>
-          <ChartCard title="Rendement vs Énergie par Zone" icon={TrendingUp} iconColor="bg-brand-500">
-            <ZoneYieldChart zones={farm.zones} />
-          </ChartCard>
-        </div>
+        <AnalysisPackets selectedPacket={selectedPacket} setSelectedPacket={setSelectedPacket} farm={farm} totalWater={totalWater} totalEnergy={totalEnergy} totalYield={totalYield} baseline={baseline} />
+
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {farm.zones.map((zone) => <ZoneCurveCard key={zone.id} zone={zone} liveTick={liveTick} />)}
+        </section>
 
         {/* Detail table */}
         <motion.div

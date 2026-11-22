@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { BrandMark } from '@/components/ui/BrandMark';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, ArrowRight, UserCheck, Sprout, Store, Award } from 'lucide-react';
+import { ShieldCheck, ArrowRight, UserCheck, Sprout, Store, Award, LockKeyhole } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,11 +14,11 @@ export default function LoginPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    router.push('/dashboard');
+    router.push(email.toLowerCase().includes('admin') ? '/admin' : '/dashboard');
   };
 
   const handleDemoLogin = (role: string) => {
-    router.push('/dashboard');
+    router.push(role === 'admin' ? '/admin' : '/dashboard');
   };
 
   return (
@@ -72,6 +72,13 @@ export default function LoginPage() {
                 </div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-water-400" />
+            </button>
+            <button
+              onClick={() => handleDemoLogin('admin')}
+              className="w-full text-left px-3 py-2 rounded-lg bg-raised hover:bg-highlight border border-sun-500/25 text-xs text-ink flex items-center justify-between transition-colors"
+            >
+              <div className="flex items-center gap-2"><LockKeyhole className="h-4 w-4 text-sun-400" /><div><p className="font-semibold">Administrateur QATRA</p><p className="text-[10px] text-earth-400">Ressources globales · rapports anonymisés · confidentialité</p></div></div>
+              <ArrowRight className="h-3.5 w-3.5 text-sun-400" />
             </button>
           </div>
         </div>

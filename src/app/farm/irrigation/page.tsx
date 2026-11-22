@@ -1,208 +1,258 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useMemo, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import {
-  Droplets,
-  Play,
-  Square,
-  ShieldAlert,
-  Clock,
   Activity,
-  Layers,
-  Settings2,
-  CheckCircle2,
   AlertTriangle,
-  Sliders
+  BatteryCharging,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Droplets,
+  Gauge,
+  GitBranch,
+  Lightbulb,
+  LockKeyhole,
+  Play,
+  ShieldAlert,
+  SlidersHorizontal,
+  Square,
+  Sun,
+  ThermometerSun,
+  Waves,
+  Zap,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
+import { DEMO_DEVICES, DEMO_ENERGY_TELEMETRY } from '@/lib/mockData';
 import { useFarmStore } from '@/stores/useFarmStore';
 import { cn, formatNumber } from '@/lib/utils';
+import type { FarmZone } from '@/types';
+
+type AgentStatus = 'ready' | 'warning' | 'critical';
+
+type Agent = {
+  id: string;
+  name: string;
+  role: string;
+  icon: LucideIcon;
+  status: AgentStatus;
+  focus: string;
+  data: string[];
+  checkpoints: string[];
+  decision: string;
+  solution: string;
+  dependencies: string[];
+  sources: string[];
+};
+
+const STATUS_LABEL: Record<AgentStatus, string> = {
+  ready: 'Prêt',
+  warning: 'À surveiller',
+  critical: 'Action requise',
+};
+
+const STATUS_CLASS: Record<AgentStatus, string> = {
+  ready: 'bg-brand-500/10 text-brand-400',
+  warning: 'bg-sun-500/10 text-sun-400',
+  critical: 'bg-alert-500/10 text-alert-400',
+};
 
 export default function IrrigationPage() {
   const { farm, startIrrigation, stopIrrigation, emergencyStopActive, toggleEmergencyStop } = useFarmStore();
-
   const [autoMode, setAutoMode] = useState(true);
   const [maxRuntimeMinutes, setMaxRuntimeMinutes] = useState(60);
 
+  const criticalZones = farm.zones.filter((zone) => zone.status === 'critical');
+  const warningZones = farm.zones.filter((zone) => zone.status === 'warning');
+  const activeZones = farm.zones.filter((zone) => zone.irrigationStatus === 'active');
+  const pump = DEMO_DEVICES.find((device) => device.type === 'irrigation_pump');
+  const flowRate = Number(pump?.readings.flowRateM3H ?? 0);
+  const pressure = Number(pump?.readings.waterPressureBar ?? 0);
+  const soilAgentStatus: AgentStatus = criticalZones.length > 0 ? 'critical' : warningZones.length > 0 ? 'warning' : 'ready';
+  const safetyStatus: AgentStatus = emergencyStopActive ? 'critical' : 'ready';
+
+  const agents = useMemo<Agent[]>(() => [
+    {
+      id: 'soil',
+      name: 'Agent Sol & Culture',
+      role: 'Détecte le besoin réel en eau',
+      icon: Droplets,
+      status: soilAgentStatus,
+      focus: 'Humidité, seuils de culture et stress hydrique par zone.',
+      data: [
+        criticalZones.length + ' zone(s) sous le seuil critique',
+        'Minimum actuel : ' + (criticalZones[0]?.soilMoisturePercent ?? 38) + '%',
+        'Seuil culture : ' + (criticalZones[0]?.targetMoistureMin ?? 35) + '%',
+      ],
+      checkpoints: ['Capteur répondant', 'Mesure comparée au seuil', 'Stress confirmé par la culture'],
+      decision: criticalZones.length > 0 ? 'Prioriser les zones critiques' : warningZones.length > 0 ? 'Préparer un cycle ciblé' : 'Aucun arrosage nécessaire',
+      solution: criticalZones.length > 0 ? 'Proposer 45 min en goutte-à-goutte sur la zone la plus sèche.' : 'Maintenir la surveillance automatique.',
+      dependencies: ['Agent Orchestrateur', 'Agent Solaire'],
+      sources: ['Sondes ESP32 / LoRa', 'Fiche culture & seuils', 'NDVI Sentinel-2'],
+    },
+    {
+      id: 'solar',
+      name: 'Agent Solaire & Météo',
+      role: 'Choisit le meilleur moment',
+      icon: Sun,
+      status: DEMO_ENERGY_TELEMETRY.solarProductionKw >= DEMO_ENERGY_TELEMETRY.pumpConsumptionKw ? 'ready' : 'warning',
+      focus: 'Production photovoltaïque, demande pompe et conditions météo.',
+      data: [
+        'Production : ' + formatNumber(DEMO_ENERGY_TELEMETRY.solarProductionKw) + ' kW',
+        'Demande pompe : ' + formatNumber(DEMO_ENERGY_TELEMETRY.pumpConsumptionKw) + ' kW',
+        'Batterie : ' + DEMO_ENERGY_TELEMETRY.batterySoCPercent + '%',
+      ],
+      checkpoints: ['Solaire supérieur à la demande', 'Batterie au-dessus de 30 %', 'Réseau disponible en secours'],
+      decision: DEMO_ENERGY_TELEMETRY.solarProductionKw >= DEMO_ENERGY_TELEMETRY.pumpConsumptionKw ? 'Fenêtre solaire favorable' : 'Reporter ou réduire le cycle',
+      solution: 'Autoriser le cycle pendant la production solaire pour éviter le recours réseau.',
+      dependencies: ['Agent Sol & Culture', 'Agent Hydraulique'],
+      sources: ['Onduleur PV', 'BMS batterie', 'Télémetrie énergie'],
+    },
+    {
+      id: 'hydraulic',
+      name: 'Agent Hydraulique',
+      role: 'Vérifie que l’eau peut circuler',
+      icon: Waves,
+      status: flowRate > 0 && pressure > 2 ? 'ready' : 'warning',
+      focus: 'Réservoir, pompe, pression, débit et vannes.',
+      data: [
+        'Réservoir : ' + farm.currentTankLevelPercent + '%',
+        'Débit : ' + formatNumber(flowRate, 1) + ' m³/h',
+        'Pression : ' + formatNumber(pressure, 1) + ' bar',
+      ],
+      checkpoints: ['Réservoir suffisant', 'Pression dans la plage', 'Débit confirmé après ouverture'],
+      decision: farm.currentTankLevelPercent > 20 && pressure > 2 ? 'Infrastructure disponible' : 'Bloquer le cycle et inspecter',
+      solution: 'Ouvrir une seule vanne à la fois puis contrôler le débit réel.',
+      dependencies: ['Agent Sol & Culture', 'Agent Sécurité'],
+      sources: ['Capteur niveau réservoir', 'Pompe submersible', 'Débitmètre / pressostat'],
+    },
+    {
+      id: 'safety',
+      name: 'Agent Sécurité',
+      role: 'Bloque les actions dangereuses',
+      icon: ShieldAlert,
+      status: safetyStatus,
+      focus: 'Arrêt d’urgence, watchdog, durée maximale et incohérences.',
+      data: [
+        'Arrêt d’urgence : ' + (emergencyStopActive ? 'ACTIF' : 'inactif'),
+        'Durée maximale : ' + maxRuntimeMinutes + ' min',
+        'Zones en fonctionnement : ' + activeZones.length,
+      ],
+      checkpoints: ['Arrêt d’urgence vérifié', 'Watchdog configuré', 'Une action à la fois'],
+      decision: emergencyStopActive ? 'Interdire toute ouverture de vanne' : 'Autoriser sous surveillance',
+      solution: emergencyStopActive ? 'Attendre le déverrouillage opérateur.' : 'Couper automatiquement si le débit ou la durée devient anormal.',
+      dependencies: ['Agent Hydraulique', 'Agent Orchestrateur'],
+      sources: ['État arrêt d’urgence', 'Watchdog local', 'Journal des opérations'],
+    },
+    {
+      id: 'orchestrator',
+      name: 'Agent Orchestrateur',
+      role: 'Assemble les preuves et décide',
+      icon: GitBranch,
+      status: emergencyStopActive ? 'critical' : criticalZones.length > 0 ? 'warning' : 'ready',
+      focus: 'Arbitrage entre eau, énergie, matériel et sécurité.',
+      data: [
+        agentsSummary(criticalZones.length, warningZones.length, activeZones.length),
+        'Mode : ' + (autoMode ? 'automatique' : 'manuel'),
+        'Décisions à valider : ' + (criticalZones.length + warningZones.length),
+      ],
+      checkpoints: ['Minimum deux sources concordantes', 'Aucune règle de sécurité violée', 'Action expliquée et traçable'],
+      decision: emergencyStopActive ? 'Aucune action automatique' : criticalZones.length > 0 ? 'Lancer une irrigation prioritaire' : 'Continuer la surveillance',
+      solution: emergencyStopActive ? 'Notifier l’opérateur et conserver les données.' : 'Combiner sol + solaire + hydraulique avant d’ouvrir la vanne.',
+      dependencies: ['Tous les agents'],
+      sources: ['États des agents', 'Historique des décisions', 'Règles QATRA Mottainai'],
+    },
+  ], [activeZones.length, autoMode, criticalZones, emergencyStopActive, farm.currentTankLevelPercent, flowRate, maxRuntimeMinutes, pressure, soilAgentStatus, warningZones.length]);
+
   return (
     <AppShell>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-line gap-4">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400">
-              Automatisation Hydrique & Philosophie Mottainai
-            </span>
-            <h1 className="text-2xl font-black text-ink">Gestion & Contrôle de l'Irrigation</h1>
-            <p className="text-xs text-earth-400 mt-0.5">
-              Asservissement en boucle fermée : Données hygrométriques sol × Ensoleillement solaire
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Auto Mode Switch */}
-            <button
-              onClick={() => setAutoMode(!autoMode)}
-              className={cn(
-                "px-4 py-2 rounded-xl text-xs font-bold border transition-colors flex items-center gap-2",
-                autoMode
-                  ? "bg-brand-600/30 border-brand-500 text-brand-300"
-                  : "bg-earth-800 border-earth-700 text-earth-400"
-              )}
-            >
-              <Activity className="h-4 w-4" />
-              <span>Mode Automatique {autoMode ? 'ACTIF' : 'MANUEL'}</span>
-            </button>
-
-            {/* Emergency Stop Button */}
-            <button
-              onClick={toggleEmergencyStop}
-              className={cn(
-                "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex items-center gap-1.5",
-                emergencyStopActive
-                  ? "bg-alert-600 text-on-accent border-alert-400 animate-bounce"
-                  : "bg-alert-950/60 border-alert-500 text-alert-300 hover:bg-alert-900"
-              )}
-            >
-              <ShieldAlert className="h-4 w-4" />
-              <span>{emergencyStopActive ? 'DÉVERROUILLER ARRÊT' : 'ARRÊT D\'URGENCE'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Water Storage & Infrastructure Status */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-surface p-5 rounded-2xl border border-line shadow-md qa-card">
-            <span className="text-xs text-earth-400 flex items-center gap-1.5">
-              <Droplets className="h-4 w-4 text-water-400" /> Bassin de Stockage Tampon
-            </span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <p className="text-3xl font-black text-ink">{farm.currentTankLevelPercent}%</p>
-              <span className="text-xs text-earth-400 font-mono">
-                ({Math.round((farm.storageTankVolumeM3 * farm.currentTankLevelPercent) / 100)} / {farm.storageTankVolumeM3} m³)
-              </span>
+      <main className="h-full overflow-y-auto px-4 pb-8 pt-4 sm:px-5 lg:px-6">
+        <div className="mx-auto max-w-[1500px] space-y-4">
+          <header className="flex flex-col gap-3 border-b border-line pb-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-400"><GitBranch className="h-3.5 w-3.5" /> Système multi-agentique</p>
+              <h1 className="mt-1 text-xl font-black tracking-tight text-ink sm:text-2xl">Décisions d’irrigation explicables</h1>
+              <p className="mt-1 text-xs text-earth-400">Chaque agent observe son service, pose des checkpoints, cite ses sources et transmet sa décision à l’orchestrateur.</p>
             </div>
-            <div className="w-full bg-earth-800 h-2 rounded-full overflow-hidden mt-3">
-              <div
-                className="bg-water-500 h-full rounded-full transition-all duration-700"
-                style={{ width: `${farm.currentTankLevelPercent}%` }}
-              />
+            <div className="flex items-center gap-2">
+              <button onClick={() => setAutoMode((current) => !current)} className={cn('inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold', autoMode ? 'bg-brand-500/15 text-brand-400' : 'bg-earth-800 text-earth-300')}><Activity className="h-3.5 w-3.5" /> {autoMode ? 'Mode automatique' : 'Mode manuel'}</button>
+              <button onClick={toggleEmergencyStop} className={cn('inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold', emergencyStopActive ? 'border-alert-400 bg-alert-600 text-on-accent' : 'border-alert-500/40 bg-alert-500/10 text-alert-400')}><ShieldAlert className="h-3.5 w-3.5" /> {emergencyStopActive ? 'Déverrouiller' : 'Arrêt urgence'}</button>
             </div>
-          </div>
+          </header>
 
-          <div className="bg-surface p-5 rounded-2xl border border-line shadow-md qa-card">
-            <span className="text-xs text-earth-400 flex items-center gap-1.5">
-              <Activity className="h-4 w-4 text-brand-400" /> Pompe Submersible Forage
-            </span>
-            <p className="text-3xl font-black text-brand-400 mt-2">26.4 m³/h</p>
-            <p className="text-xs text-earth-400 mt-1">Pression de refoulement : 3.8 bars · Puissance 6.8 kW</p>
-          </div>
+          <section className="grid grid-cols-2 divide-x divide-line overflow-hidden rounded-xl border border-line bg-surface sm:grid-cols-4">
+            <Summary label="Agents actifs" value={String(agents.length)} detail="décision coordonnée" icon={GitBranch} />
+            <Summary label="Zones critiques" value={String(criticalZones.length)} detail="attention immédiate" icon={AlertTriangle} tone={criticalZones.length ? 'critical' : 'default'} />
+            <Summary label="Cycles actifs" value={String(activeZones.length)} detail="opérations en cours" icon={Droplets} tone="water" />
+            <Summary label="Sources utilisées" value={String(new Set(agents.flatMap((agent) => agent.sources)).size)} detail="données traçables" icon={CheckCircle2} />
+          </section>
 
-          <div className="bg-surface p-5 rounded-2xl border border-line shadow-md qa-card">
-            <span className="text-xs text-earth-400 flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-sun-400" /> Sécurité Durée Maximale (Watchdog)
-            </span>
-            <div className="flex items-center gap-2 mt-2">
-              <input
-                type="number"
-                value={maxRuntimeMinutes}
-                onChange={(e) => setMaxRuntimeMinutes(Number(e.target.value))}
-                className="w-20 bg-sunken border border-line rounded-lg px-2.5 py-1 text-sm font-mono font-bold text-ink focus:outline-none focus:border-brand-500"
-              />
-              <span className="text-xs text-earth-400">minutes consécutives max</span>
+          <section className="rounded-xl border border-line bg-surface p-4">
+            <div className="flex items-center justify-between border-b border-line pb-3">
+              <div><h2 className="text-sm font-bold text-ink">Chaîne de décision</h2><p className="mt-0.5 text-[11px] text-earth-400">Les agents travaillent ensemble avant toute ouverture de vanne.</p></div>
+              <span className="hidden items-center gap-1.5 text-[11px] text-earth-400 sm:flex"><Lightbulb className="h-3.5 w-3.5 text-sun-400" /> checkpoints obligatoires</span>
             </div>
-            <p className="text-[10px] text-earth-500 mt-2">Coupure automatique si vanne bloquée ouverte</p>
-          </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-5">
+              {agents.map((agent, index) => <AgentLink key={agent.id} agent={agent} index={index} />)}
+            </div>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-2">
+            {agents.map((agent) => <AgentCard key={agent.id} agent={agent} />)}
+          </section>
+
+          <section className="overflow-hidden rounded-xl border border-line bg-surface">
+            <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div><h2 className="text-sm font-bold text-ink">Décision par zone</h2><p className="mt-0.5 text-[11px] text-earth-400">Résultat coordonné des agents, avec opération disponible immédiatement.</p></div>
+              <div className="flex items-center gap-2 text-[11px] text-earth-400"><Clock3 className="h-3.5 w-3.5 text-water-400" /> Watchdog <input type="number" value={maxRuntimeMinutes} onChange={(event) => setMaxRuntimeMinutes(Number(event.target.value))} className="w-14 rounded border border-line bg-sunken px-1.5 py-1 text-center text-ink" /> min</div>
+            </div>
+            <div className="divide-y divide-line">
+              {farm.zones.map((zone) => <ZoneDecision key={zone.id} zone={zone} emergencyStopActive={emergencyStopActive} onStart={() => startIrrigation(zone.id)} onStop={() => stopIrrigation(zone.id)} />)}
+            </div>
+          </section>
         </div>
-
-        {/* Zones Irrigation Matrix */}
-        <div className="bg-surface border border-line rounded-2xl p-5 shadow-xl qa-card">
-          <h2 className="text-base font-bold text-ink mb-4">Matrice des Vannes Parcellaires</h2>
-
-          <div className="divide-y divide-line">
-            {farm.zones.map((zone) => {
-              const isIrrigating = zone.irrigationStatus === 'active';
-              const isCritical = zone.status === 'critical';
-
-              return (
-                <div key={zone.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className={cn(
-                      "h-10 w-10 rounded-xl flex items-center justify-center font-bold flex-shrink-0 mt-0.5",
-                      isIrrigating ? "bg-water-500/20 text-water-400 animate-pulse border border-water-500/30" : "bg-earth-800 text-earth-400"
-                    )}>
-                      <Droplets className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-ink">{zone.name}</h4>
-                      <p className="text-xs text-earth-400">{zone.cropType} · {zone.areaHa} Ha · {zone.irrigationMethod}</p>
-                    </div>
-                  </div>
-
-                  {/* Soil moisture gauge & limits */}
-                  <div className="flex items-center gap-4 text-xs">
-                    <div>
-                      <span className="text-earth-400 block text-[10px]">Humidité Actuelle</span>
-                      <span className={cn(
-                        "font-mono font-bold text-sm",
-                        isCritical ? "text-alert-400" : "text-ink"
-                      )}>
-                        {zone.soilMoisturePercent}%
-                      </span>
-                    </div>
-
-                    <div className="h-6 w-px bg-earth-700 hidden sm:block" />
-
-                    <div>
-                      <span className="text-earth-400 block text-[10px]">Seuils Autorisés</span>
-                      <span className="font-mono text-earth-300">
-                        {zone.targetMoistureMin}% à {zone.targetMoistureMax}%
-                      </span>
-                    </div>
-
-                    <div className="h-6 w-px bg-earth-700 hidden sm:block" />
-
-                    <div>
-                      <span className="text-earth-400 block text-[10px]">Consommation 24h</span>
-                      <span className="font-mono text-water-400 font-semibold">
-                        {formatNumber(zone.dailyWaterLiters)} L
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    {isIrrigating ? (
-                      <button
-                        onClick={() => stopIrrigation(zone.id)}
-                        className="px-4 py-2 rounded-xl bg-earth-800 hover:bg-earth-700 text-alert-400 border border-alert-500/30 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                      >
-                        <Square className="h-3.5 w-3.5 fill-current" />
-                        <span>Fermer Vanne</span>
-                      </button>
-                    ) : (
-                      <button
-                        disabled={emergencyStopActive}
-                        onClick={() => startIrrigation(zone.id)}
-                        className={cn(
-                          "px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md",
-                          emergencyStopActive
-                            ? "bg-earth-800 text-earth-500 cursor-not-allowed"
-                            : isCritical
-                            ? "bg-alert-600 hover:bg-alert-500 text-on-accent shadow-shade/20"
-                            : "bg-accent hover:bg-accent-hover text-on-accent shadow-shade/20"
-                        )}
-                      >
-                        <Play className="h-3.5 w-3.5 fill-current" />
-                        <span>Ouvrir Vanne</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      </main>
     </AppShell>
   );
+}
+
+function agentsSummary(critical: number, warning: number, active: number) {
+  return critical + ' critique(s) · ' + warning + ' à surveiller · ' + active + ' cycle(s) actif(s)';
+}
+
+function Summary({ label, value, detail, icon: Icon, tone = 'default' }: { label: string; value: string; detail: string; icon: LucideIcon; tone?: 'default' | 'critical' | 'water' }) {
+  return <div className="min-w-0 px-3 py-2.5 sm:px-4"><div className="flex items-center justify-between gap-2"><span className="truncate text-[11px] text-earth-400">{label}</span><Icon className={cn('h-3.5 w-3.5', tone === 'critical' ? 'text-alert-400' : tone === 'water' ? 'text-water-400' : 'text-brand-400')} /></div><div className="mt-1 flex items-baseline gap-2"><span className="text-lg font-black text-ink">{value}</span><span className="truncate text-[10px] text-earth-500">{detail}</span></div></div>;
+}
+
+function AgentLink({ agent, index }: { agent: Agent; index: number }) {
+  const Icon = agent.icon;
+  return <div className="flex items-center gap-2 rounded-lg bg-raised px-2.5 py-2"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-water-500/10 text-water-400"><Icon className="h-3.5 w-3.5" /></span><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-ink">{index + 1}. {agent.name.replace('Agent ', '')}</p><p className="truncate text-[9px] text-earth-500">{STATUS_LABEL[agent.status]}</p></div>{index < 4 && <ChevronRight className="ml-auto hidden h-3 w-3 shrink-0 text-earth-500 md:block" />}</div>;
+}
+
+function AgentCard({ agent }: { agent: Agent }) {
+  const Icon = agent.icon;
+  return (
+    <article className={cn('rounded-xl border bg-surface p-4', agent.status === 'critical' ? 'border-alert-500/50' : agent.status === 'warning' ? 'border-sun-500/40' : 'border-line')}>
+      <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
+        <div className="flex min-w-0 items-center gap-2.5"><span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', agent.status === 'critical' ? 'bg-alert-500/10 text-alert-400' : agent.status === 'warning' ? 'bg-sun-500/10 text-sun-400' : 'bg-water-500/10 text-water-400')}><Icon className="h-4 w-4" /></span><div className="min-w-0"><h3 className="truncate text-sm font-bold text-ink">{agent.name}</h3><p className="mt-0.5 text-[11px] text-earth-400">{agent.role}</p></div></div>
+        <span className={cn('shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold', STATUS_CLASS[agent.status])}>{STATUS_LABEL[agent.status]}</span>
+      </div>
+      <p className="mt-3 text-[11px] leading-4 text-earth-300">{agent.focus}</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-earth-500">Données observées</p><ul className="space-y-1">{agent.data.map((item) => <li key={item} className="flex gap-1.5 text-[10px] text-earth-300"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-water-400" />{item}</li>)}</ul></div>
+        <div><p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-earth-500">Checkpoints</p><ul className="space-y-1">{agent.checkpoints.map((item) => <li key={item} className="flex gap-1.5 text-[10px] text-earth-300"><CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-brand-400" />{item}</li>)}</ul></div>
+      </div>
+      <div className={cn('mt-3 rounded-lg p-2.5', agent.status === 'critical' ? 'bg-alert-500/10' : agent.status === 'warning' ? 'bg-sun-500/10' : 'bg-water-500/5')}><p className="text-[10px] font-bold uppercase tracking-wider text-earth-500">Décision</p><p className="mt-1 text-xs font-bold text-ink">{agent.decision}</p><p className="mt-1 text-[10px] leading-4 text-earth-300">Solution : {agent.solution}</p></div>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5"><span className="text-[10px] font-semibold text-earth-500">Dépend de :</span>{agent.dependencies.map((dependency) => <span key={dependency} className="rounded bg-earth-800 px-1.5 py-1 text-[9px] text-earth-300">{dependency}</span>)}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-line pt-2"><span className="text-[10px] font-semibold text-earth-500">Sources :</span>{agent.sources.map((source) => <span key={source} className="rounded bg-brand-500/10 px-1.5 py-1 text-[9px] text-brand-400">{source}</span>)}</div>
+    </article>
+  );
+}
+
+function ZoneDecision({ zone, emergencyStopActive, onStart, onStop }: { zone: FarmZone; emergencyStopActive: boolean; onStart: () => void; onStop: () => void }) {
+  const active = zone.irrigationStatus === 'active';
+  const critical = zone.status === 'critical';
+  const decision = active ? 'Cycle en cours' : critical ? 'Arroser maintenant' : zone.status === 'warning' ? 'Arrosage prioritaire' : 'Surveiller';
+  return <div className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,1.2fr)_100px_minmax(150px,1fr)_auto] lg:items-center"><div><div className="flex items-center gap-2"><span className={cn('h-2 w-2 rounded-full', critical ? 'bg-alert-500' : zone.status === 'warning' ? 'bg-sun-500' : active ? 'bg-water-500' : 'bg-brand-500')} /><p className="truncate text-xs font-bold text-ink">{zone.name}</p></div><p className="mt-1 pl-4 text-[10px] text-earth-500">{zone.cropType} · seuil {zone.targetMoistureMin}–{zone.targetMoistureMax}%</p></div><div><p className={cn('text-lg font-black', critical ? 'text-alert-400' : 'text-ink')}>{zone.soilMoisturePercent}%</p><p className="text-[10px] text-earth-500">humidité</p></div><div><p className={cn('text-xs font-semibold', critical ? 'text-alert-400' : zone.status === 'warning' ? 'text-sun-400' : 'text-water-400')}>{decision}</p><p className="mt-1 text-[10px] text-earth-500">{formatNumber(zone.dailyWaterLiters)} L / jour · {zone.irrigationMethod}</p></div><div className="flex justify-start lg:justify-end">{active ? <button onClick={onStop} className="inline-flex items-center gap-1.5 rounded-lg border border-alert-500/30 px-2.5 py-1.5 text-[10px] font-semibold text-alert-400"><Square className="h-3 w-3 fill-current" /> Arrêter</button> : <button disabled={emergencyStopActive} onClick={onStart} className={cn('inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold', emergencyStopActive ? 'cursor-not-allowed bg-earth-800 text-earth-500' : critical ? 'bg-alert-600 text-on-accent hover:bg-alert-500' : 'bg-accent text-on-accent hover:bg-accent-hover')}><Play className="h-3 w-3 fill-current" /> Ouvrir vanne</button>}</div></div>;
 }

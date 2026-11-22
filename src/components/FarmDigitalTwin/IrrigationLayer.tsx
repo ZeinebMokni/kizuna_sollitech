@@ -3,8 +3,10 @@
 import { useEffect, useRef } from 'react';
 import type { Map as MapLibreMap, GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl';
 import { useFarmStore } from '@/stores/useFarmStore';
+import { useParcelStore } from '@/stores/useParcelStore';
 import { DEMO_DEVICES, DEMO_FARM } from '@/lib/mockData';
 import type { FarmZone } from '@/types';
+import type { Parcel } from '@/lib/parcels/types';
 
 /* ───────────────────────────── Tunable values ─────────────────────────────
  * PUMP              pump / borehole station [lng, lat], read from the pump device
@@ -55,6 +57,7 @@ type LngLat = [number, number];
 type PipeKind = 'main' | 'manifold' | 'lateral';
 type Pipe = { zoneId: string; kind: PipeKind; from: LngLat; to: LngLat; lengthM: number };
 type ZoneNet = { zone: FarmZone; valve: LngLat; pipes: Pipe[] };
+type ParcelNet = { id: string; valve: LngLat; pipes: Pipe[] };
 
 const lerp = (a: LngLat, b: LngLat, t: number): LngLat => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 
@@ -95,6 +98,34 @@ function buildNetwork(zone: FarmZone): ZoneNet {
   return { zone, valve, pipes };
 }
 
+/** Build a clean parallel irrigation layout for a rectangle-created parcel. */
+function buildParcelNetwork(parcel: Parcel): ParcelNet | null {
+  const ring = parcel.polygon.slice(0, 4) as LngLat[];
+  if (ring.length < 4) return null;
+  const c: LngLat = [ring.reduce((s, p) => s + p[0], 0) / 4, ring.reduce((s, p) => s + p[1], 0) / 4];
+  const inset = (p: LngLat) => lerp(p, c, 0.08);
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < 4; i++) {
+    const d = metres(lerp(ring[i], ring[(i + 1) % 4], 0.5), PUMP);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  const e0 = inset(ring[best]);
+  const e1 = inset(ring[(best + 1) % 4]);
+  const o0 = inset(ring[(best + 3) % 4]);
+  const o1 = inset(ring[(best + 2) % 4]);
+  const valve = lerp(e0, e1, 0.5);
+  const id = 'parcel-' + parcel.id;
+  const mk = (kind: PipeKind, from: LngLat, to: LngLat): Pipe => ({ zoneId: id, kind, from, to, lengthM: metres(from, to) });
+  const pipes: Pipe[] = [mk('main', PUMP, valve), mk('manifold', valve, e0), mk('manifold', valve, e1)];
+  const count = Math.max(6, Math.min(12, Math.round(Math.sqrt(Math.max(1, parcel.areaHa)) * 2)));
+  for (let k = 0; k < count; k++) {
+    const t = (k + 0.5) / count;
+    pipes.push(mk('lateral', lerp(e0, e1, t), lerp(o0, o1, t)));
+  }
+  return { id, valve, pipes };
+}
+
 const emptyFC = (): GeoJSON.FeatureCollection => ({ type: 'FeatureCollection', features: [] });
 
 interface IrrigationLayerProps {
@@ -110,6 +141,7 @@ interface IrrigationLayerProps {
  */
 export function IrrigationLayer({ map, visible = true }: IrrigationLayerProps) {
   const { farm, emergencyStopActive, startIrrigation, stopIrrigation } = useFarmStore();
+  const { parcels, toggleParcelIrrigation } = useParcelStore();
   const netRef = useRef<ZoneNet[]>([]);
   const flowingRef = useRef<Set<string>>(new Set());
 
@@ -202,7 +234,7 @@ export function IrrigationLayer({ map, visible = true }: IrrigationLayerProps) {
           type: 'circle',
           source: SRC.valves,
           paint: {
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 6, 17.5, 10],
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, ['case', ['==', ['get', 'parcel'], 1], 10, 6], 17.5, ['case', ['==', ['get', 'parcel'], 1], 16, 10]],
             'circle-color': ['case', ['==', ['get', 'open'], 1], '#1FA9C6', '#F4F8F9'],
             'circle-stroke-color': '#0E3A44',
             'circle-stroke-width': 2,
@@ -218,29 +250,47 @@ export function IrrigationLayer({ map, visible = true }: IrrigationLayerProps) {
   useEffect(() => {
     if (!map) return;
     const nets = farm.zones.map(buildNetwork);
+    const parcelNets = parcels.map(buildParcelNetwork).filter((net): net is ParcelNet => Boolean(net));
     netRef.current = nets;
     const flowing = new Set(
-      emergencyStopActive ? [] : farm.zones.filter((z) => z.irrigationStatus === 'active').map((z) => z.id)
+      emergencyStopActive ? [] : [
+        ...farm.zones.filter((z) => z.irrigationStatus === 'active').map((z) => z.id),
+        ...parcels.filter((parcel) => parcel.irrigationActive).map((parcel) => 'parcel-' + parcel.id),
+      ]
     );
     flowingRef.current = flowing;
 
     const pipesFC: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
-      features: nets.flatMap((n) =>
+      features: [
+        ...nets.flatMap((n) =>
         n.pipes.map((p) => ({
           type: 'Feature' as const,
           geometry: { type: 'LineString' as const, coordinates: [p.from, p.to] },
           properties: { zoneId: p.zoneId, kind: p.kind, flowing: flowing.has(p.zoneId) ? 1 : 0 },
         }))
       ),
+        ...parcelNets.flatMap((n) => n.pipes.map((p) => ({
+          type: 'Feature' as const,
+          geometry: { type: 'LineString' as const, coordinates: [p.from, p.to] },
+          properties: { zoneId: p.zoneId, kind: p.kind, flowing: 0, parcel: 1 },
+        }))),
+      ],
     };
     const valvesFC: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
-      features: nets.map((n) => ({
+      features: [
+        ...nets.map((n) => ({
         type: 'Feature' as const,
         geometry: { type: 'Point' as const, coordinates: n.valve },
-        properties: { zoneId: n.zone.id, open: flowing.has(n.zone.id) ? 1 : 0 },
+        properties: { zoneId: n.zone.id, open: flowing.has(n.zone.id) ? 1 : 0, parcel: 0 },
       })),
+        ...parcelNets.map((n) => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: n.valve },
+          properties: { zoneId: n.id, open: flowing.has(n.id) ? 1 : 0, parcel: 1 },
+        })),
+      ],
     };
     const wetFC: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
@@ -257,7 +307,7 @@ export function IrrigationLayer({ map, visible = true }: IrrigationLayerProps) {
     } catch (err) {
       console.warn('Irrigation layer update error:', err);
     }
-  }, [map, farm.zones, emergencyStopActive]);
+  }, [map, farm.zones, parcels, emergencyStopActive]);
 
   // Show / hide with the active map mode.
   useEffect(() => {
@@ -329,7 +379,8 @@ export function IrrigationLayer({ map, visible = true }: IrrigationLayerProps) {
     const onClick = (e: MapLayerMouseEvent) => {
       const zoneId = e.features?.[0]?.properties?.zoneId as string | undefined;
       if (!zoneId) return;
-      if (flowingRef.current.has(zoneId)) stopIrrigation(zoneId);
+      if (zoneId.startsWith('parcel-')) toggleParcelIrrigation(zoneId.replace(/^parcel-/, ''));
+      else if (flowingRef.current.has(zoneId)) stopIrrigation(zoneId);
       else startIrrigation(zoneId);
     };
     const onEnter = () => (map.getCanvas().style.cursor = 'pointer');
@@ -342,7 +393,7 @@ export function IrrigationLayer({ map, visible = true }: IrrigationLayerProps) {
       map.off('mouseenter', LAYER.valves, onEnter);
       map.off('mouseleave', LAYER.valves, onLeave);
     };
-  }, [map, startIrrigation, stopIrrigation]);
+  }, [map, startIrrigation, stopIrrigation, toggleParcelIrrigation]);
 
   return null;
 }

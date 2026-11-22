@@ -10,14 +10,23 @@ import {
   X,
   Sparkles,
   Eye,
-  MessageSquare
+  MessageSquare,
+  CircleDollarSign,
+  Droplets,
+  Sun,
+  TrendingDown,
+  Scale,
+  AlertTriangle
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
-import { DEMO_LISTINGS } from '@/lib/mockData';
+import { DEMO_ENERGY_TELEMETRY, DEMO_LISTINGS, DEMO_WATER_BASELINE } from '@/lib/mockData';
+import { useFarmStore } from '@/stores/useFarmStore';
 import { ProductListing } from '@/types';
+import type { Farm } from '@/types';
 import { cn, formatNumber, formatCurrencyTND } from '@/lib/utils';
 
 export default function MyListingsPage() {
+  const { farm } = useFarmStore();
   const [listings, setListings] = useState<ProductListing[]>(DEMO_LISTINGS.filter(l => l.farmerName === 'Tarak Ben Salem'));
   const [modalOpen, setModalOpen] = useState(false);
   const [cropName, setCropName] = useState('Piments Baklouti');
@@ -78,6 +87,8 @@ export default function MyListingsPage() {
             <span>Mettre en Vente une Nouvelle Récolte</span>
           </button>
         </div>
+
+        <QatraImpactComparison farm={farm} />
 
         {/* Listings List */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -201,4 +212,65 @@ export default function MyListingsPage() {
       </div>
     </AppShell>
   );
+}
+
+function QatraImpactComparison({ farm }: { farm: Farm }) {
+  const totalWaterWith = farm.zones.reduce((sum, zone) => sum + zone.dailyWaterLiters, 0);
+  const totalYield = farm.zones.reduce((sum, zone) => sum + zone.yieldEstimateTons, 0);
+  const classicWater = DEMO_WATER_BASELINE.classicIrrigationLitersPerDay;
+  const waterSaved = Math.max(0, classicWater - totalWaterWith);
+  const waterSavedPct = Math.round((waterSaved / classicWater) * 100);
+  const waterCostSavedDaily = (waterSaved / 1000) * 0.9;
+  const solarShare = DEMO_ENERGY_TELEMETRY.gridImportKw === 0 ? 100 : Math.round((1 - DEMO_ENERGY_TELEMETRY.gridImportKw / Math.max(DEMO_ENERGY_TELEMETRY.solarProductionKw, 1)) * 100);
+  const withoutSystemEnergyShare = 45;
+  const protectedYield = totalYield * 0.92;
+
+  return (
+    <section className="rounded-2xl border border-brand-500/25 bg-surface p-4 shadow-xl qa-card">
+      <div className="flex flex-col gap-3 border-b border-line pb-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-brand-400"><Scale className="h-3.5 w-3.5" /> Valeur de QATRA pour votre exploitation</p>
+          <h2 className="mt-1 text-base font-bold text-ink">Que se passe-t-il avec et sans le système ?</h2>
+          <p className="mt-0.5 text-[11px] text-earth-400">Comparaison de référence sur vos données actuelles, pour comprendre ce que vous gagnez et ce que vous risquez sans pilotage.</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-sun-500/10 px-2.5 py-1 text-[10px] font-semibold text-sun-400"><AlertTriangle className="h-3 w-3" /> Scénario de référence</span>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <ScenarioCard title="Sans QATRA · irrigation classique" tone="without" items={[
+          ['Eau', formatNumber(classicWater) + ' L / jour', 'Référence classique'],
+          ['Énergie réseau', withoutSystemEnergyShare + ' %', 'Hypothèse à remplacer'],
+          ['Rendement exposé', formatNumber(protectedYield, 1) + ' T', 'Scénario stress -8 %'],
+          ['Pilotage', 'Manuel', 'Pas de décision capteur'],
+        ]} />
+        <ScenarioCard title="Avec QATRA · pilotage connecté" tone="with" items={[
+          ['Eau', formatNumber(totalWaterWith) + ' L / jour', '-' + waterSavedPct + ' % vs classique'],
+          ['Autonomie solaire', solarShare + ' %', formatNumber(DEMO_ENERGY_TELEMETRY.solarProductionKw, 1) + ' kW produits'],
+          ['Rendement projeté', formatNumber(totalYield, 1) + ' T', 'Selon les zones actuelles'],
+          ['Pilotage', 'Automatique + humain', 'Capteurs, agents et historique'],
+        ]} />
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <ImpactFact icon={Droplets} label="Eau sauvée" value={formatNumber(waterSaved) + ' L / jour'} detail={formatNumber(waterSaved * 30) + ' L / mois'} />
+        <ImpactFact icon={CircleDollarSign} label="Coût eau évité" value={waterCostSavedDaily.toFixed(2) + ' DT / jour'} detail="base indicative : 0,90 DT/m³" />
+        <ImpactFact icon={TrendingDown} label="Risque sans système" value="-8 % rendement" detail="hypothèse à confirmer par historique" tone="warning" />
+      </div>
+
+      <p className="mt-3 text-[10px] leading-4 text-earth-500">Pour une comparaison financière exacte, remplacez les hypothèses par vos factures d’eau, d’énergie, de main-d’œuvre et vos rendements historiques. Le système pourra ensuite mesurer le résultat réel après chaque campagne.</p>
+    </section>
+  );
+}
+
+function ScenarioCard({ title, tone, items }: { title: string; tone: 'without' | 'with'; items: [string, string, string][] }) {
+  return (
+    <div className={cn('rounded-xl border p-3', tone === 'without' ? 'border-alert-500/25 bg-alert-500/5' : 'border-brand-500/25 bg-brand-500/5')}>
+      <div className="flex items-center gap-2"><span className={cn('h-2 w-2 rounded-full', tone === 'without' ? 'bg-alert-500' : 'bg-brand-500')} /><h3 className="text-xs font-bold text-ink">{title}</h3></div>
+      <div className="mt-3 grid grid-cols-2 gap-2">{items.map(([label, value, detail]) => <div key={label} className="rounded-lg bg-surface/70 p-2"><p className="text-[10px] text-earth-500">{label}</p><p className="mt-1 text-sm font-black text-ink">{value}</p><p className="mt-0.5 text-[9px] text-earth-400">{detail}</p></div>)}</div>
+    </div>
+  );
+}
+
+function ImpactFact({ icon: Icon, label, value, detail, tone = 'success' }: { icon: typeof Droplets; label: string; value: string; detail: string; tone?: 'success' | 'warning' }) {
+  return <div className={cn('rounded-xl border p-3', tone === 'warning' ? 'border-sun-500/30 bg-sun-500/5' : 'border-brand-500/25 bg-brand-500/5')}><Icon className={cn('h-4 w-4', tone === 'warning' ? 'text-sun-400' : 'text-brand-400')} /><p className="mt-2 text-[10px] text-earth-500">{label}</p><p className="mt-0.5 text-sm font-black text-ink">{value}</p><p className="mt-1 text-[10px] text-earth-400">{detail}</p></div>;
 }

@@ -162,7 +162,7 @@ export function AppShell({ children }: AppShellProps) {
           radius="card"
           className={cn(
             "hidden md:flex flex-col m-3 me-0 transition-[width] duration-300 ease-out-soft select-none z-30 overflow-hidden",
-            sidebarOpen ? "w-64" : "w-20"
+            sidebarOpen ? "w-72" : "w-20"
           )}
         >
           {/* Logo & Brand */}
@@ -210,7 +210,7 @@ export function AppShell({ children }: AppShellProps) {
                     />
                   )}
                   <Icon className={cn("h-5 w-5 flex-shrink-0", active ? "text-on-accent" : "text-water-400")} />
-                  {sidebarOpen && <span className="flex-1 truncate">{item.label}</span>}
+                  {sidebarOpen && <span className="flex-1 whitespace-nowrap text-[13px]">{item.label}</span>}
 
                   {sidebarOpen && item.badge && (
                     <span className={cn(

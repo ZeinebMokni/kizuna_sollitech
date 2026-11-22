@@ -20,6 +20,7 @@ export interface Parcel {
   /** ISO date */
   createdAt: string;
   source: ParcelSource;
+  irrigationActive?: boolean;
 }
 
 /** A parcel outline being created, before it is saved. */
