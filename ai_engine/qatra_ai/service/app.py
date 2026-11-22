@@ -20,10 +20,11 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+import pandas as pd
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -31,6 +32,14 @@ from qatra_ai.agronomy.crops import get_crop
 from qatra_ai.assistant.assistant import QatraAssistant
 from qatra_ai.assistant.tools import AssistantContext
 from qatra_ai.contracts import DataClass
+from qatra_ai.data.fusion import DataFusionEngine
+from qatra_ai.data.ingestion import (
+    ImportValidationError,
+    import_irrigation_csv,
+    import_sensor_csv,
+)
+from qatra_ai.data.station_selection import STATIONS, select_variable
+from qatra_ai.data.store import Zone, data_root, read_observations
 from qatra_ai.farms.registry import FarmRegistry, load_registry
 from qatra_ai.service.data import (
     CACHE_DIR,
@@ -403,6 +412,150 @@ def create_app(
     @app.post("/api/assistant")
     def legacy_ask(req: AskRequest) -> dict:
         return ask(default_farm_id(), req)
+
+    @app.get("/api/data-status")
+    def data_status() -> dict:
+        root = data_root()
+        processed = root / "processed" / "dgacta_sidi_bouzid"
+        stations = []
+        if processed.is_dir():
+            for path in sorted(processed.glob("*.csv")):
+                try:
+                    table = read_observations(path, Zone.PROCESSED)
+                    latest = table["timestamp_utc"].max()
+                    age_h = (datetime.now(UTC) - latest.to_pydatetime()).total_seconds() / 3600
+                    stations.append({
+                        "station": path.stem,
+                        "rows": len(table),
+                        "latest_observation_utc": latest.isoformat(),
+                        "age_hours": round(age_h, 1),
+                        "stale": age_h > 72,
+                        "qc_counts": table["qc_flag"].value_counts().to_dict(),
+                    })
+                except (OSError, ValueError) as exc:
+                    stations.append({"station": path.stem, "error": str(exc)})
+        sensor_files = list((root / "sensors").glob("*/*.csv"))
+        return {
+            "meta": {"generated_at": datetime.now(UTC).isoformat()},
+            "data": {
+                "stations": stations,
+                "sensor_imports": len(sensor_files),
+                "raw_archive": str(root / "raw"),
+            },
+        }
+
+    @app.post("/api/farms/{farm_id}/imports/sensors")
+    async def import_sensors(farm_id: str, file: UploadFile) -> dict:
+        rt(farm_id)
+        content = await file.read()
+        try:
+            path, table, duplicates = import_sensor_csv(content, farm_id=farm_id)
+        except ImportValidationError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {
+            "meta": {"farm_id": farm_id, "import_name": file.filename},
+            "data": {
+                "path": str(path),
+                "rows": len(table),
+                "duplicates_removed": duplicates,
+                "provenance": "sensor_import",
+            },
+        }
+
+    @app.post("/api/farms/{farm_id}/imports/irrigation")
+    async def import_irrigation(farm_id: str, file: UploadFile) -> dict:
+        r = rt(farm_id)
+        content = await file.read()
+        known = {z.zone_id for z in r.profile.zones}
+        try:
+            path, table, duplicates = import_irrigation_csv(
+                content, farm_id=farm_id, known_zones=known
+            )
+        except ImportValidationError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {
+            "meta": {"farm_id": farm_id, "import_name": file.filename},
+            "data": {
+                "path": str(path),
+                "rows": len(table),
+                "duplicates_removed": duplicates,
+                "provenance": "farmer_reported",
+            },
+        }
+
+    @app.get("/api/farms/{farm_id}/solar-profile")
+    def solar_profile(farm_id: str, start_year: int = 2020, end_year: int = 2020) -> dict:
+        r = rt(farm_id)
+        try:
+            from qatra_ai.data.sources.pvgis import PvgisError, fetch_hourly_solar
+
+            solar = fetch_hourly_solar(
+                r.profile.location.latitude,
+                r.profile.location.longitude,
+                peak_power_kw=r.profile.energy.pv_rated_kw,
+                start_year=start_year,
+                end_year=end_year,
+            )
+        except PvgisError as exc:
+            raise HTTPException(503, f"PVGIS unavailable: {exc}") from exc
+        peak = float(solar["pv_kw"].max())
+        daily = solar.set_index("timestamp_utc").resample("1D")["pv_kw"].sum().round(3)
+        return {
+            "meta": {
+                "farm_id": farm_id,
+                "source": "PVGIS 5.2 seriescalc",
+                "data_class": "inferred",
+                "assumed_rated_kw": r.profile.energy.pv_rated_kw,
+            },
+            "data": {
+                "hourly_rows": len(solar),
+                "peak_kw": peak,
+                "estimated_daily_kwh": daily.to_dict(),
+                "fallback": "existing assumed solar profile remains available",
+            },
+        }
+
+    @app.get("/api/farms/{farm_id}/station-selection")
+    def station_selection(farm_id: str, variable: str = "air_temperature") -> dict:
+        r = rt(farm_id)
+        root = data_root()
+        frames = []
+        for path in (root / "processed" / "dgacta_sidi_bouzid").glob("*.csv"):
+            try:
+                frames.append(read_observations(path, Zone.PROCESSED))
+            except (OSError, ValueError):
+                continue
+        observations = frames[0] if not frames else pd.concat(frames, ignore_index=True)
+        selection = (
+            select_variable(
+                observations,
+                variable,
+                r.profile.location.latitude,
+                r.profile.location.longitude,
+                datetime.now(UTC),
+                max_age=timedelta(days=30),
+            )
+            if len(frames)
+            else None
+        )
+        engine = DataFusionEngine()
+        fused = engine.fuse(
+            variable,
+            selection,
+            model_value=None,
+            model_unit="",
+            model_source="no model fallback configured",
+        )
+        return {
+            "meta": {
+                "farm_id": farm_id,
+                "station_catalogue": [
+                    {"station_id": s.station_id, "latitude": s.latitude, "longitude": s.longitude}
+                    for s in STATIONS
+                ],
+            },
+            "data": fused.__dict__,
+        }
 
     return app
 

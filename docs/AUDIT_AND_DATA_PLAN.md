@@ -172,7 +172,24 @@ What can be built now is the pipeline: data loading, features, splits, a trainin
 
 ---
 
-## 8. Recommended implementation sequence
+## 8. Implemented trustworthy-data milestone
+
+The next milestone adds reliable operations around the existing physics and optimisation
+engine, rather than training models:
+
+- DGACTA snapshots are archived unchanged with SHA-256 manifests and rebuild processed
+  observations with quality flags.
+- A station-selection service evaluates every variable independently. It rejects invalid,
+  missing and suspect readings, checks freshness, calculates geographic distance and records
+  the selected station/source. It never chooses a source by distance alone.
+- The data-fusion service keeps measured, inferred, projected and synthetic classes separate.
+  A model estimate is returned only as an explicit fallback and is never presented as a physical
+  measurement.
+- Sensor and irrigation CSV imports validate timestamps, units, zones and duplicate keys.
+- PVGIS exposes hourly estimated solar production separately from the existing assumed profile.
+- The API and dashboard can list and select farms, while legacy routes remain for compatibility.
+
+## 9. Recommended implementation sequence
 
 Each step is small, keeps the existing tests green, and adds its own tests.
 

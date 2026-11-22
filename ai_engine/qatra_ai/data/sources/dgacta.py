@@ -376,6 +376,8 @@ class StationRun:
     time_min_utc: str | None = None
     time_max_utc: str | None = None
     qc_counts: dict[str, int] = field(default_factory=dict)
+    stale: bool = False
+    publication_lag_hours: float | None = None
 
 
 def fetch_station(client: httpx.Client, station: str, root: Path | None = None) -> StationRun:
@@ -468,6 +470,11 @@ def archive(
                 run.time_min_utc = table["timestamp_utc"].min().isoformat()
                 run.time_max_utc = table["timestamp_utc"].max().isoformat()
                 run.qc_counts = {k: int(v) for k, v in table["qc_flag"].value_counts().items()}
+                latest = table["timestamp_utc"].max().to_pydatetime()
+                run.publication_lag_hours = round(
+                    (datetime.now(UTC) - latest).total_seconds() / 3600, 1
+                )
+                run.stale = run.publication_lag_hours > 72
             runs.append(run)
     finally:
         if own:

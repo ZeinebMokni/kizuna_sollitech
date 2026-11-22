@@ -3,13 +3,14 @@
 import { DecisionCard, zoneName } from "@/components/decision-card";
 import { FarmMap } from "@/components/farm-map";
 import { Card, ErrorNote, Loading, PageHeader, Provenance, Stat } from "@/components/ui";
-import { type DecisionEnvelope, type FarmInfo, useApi } from "@/lib/api";
+import { type DecisionEnvelope, type FarmInfo, useApi, useSelectedFarm } from "@/lib/api";
 import { useDay } from "@/lib/day";
 
 export default function Overview() {
   const { day } = useDay();
-  const farm = useApi<FarmInfo>("/api/farm");
-  const dec = useApi<DecisionEnvelope>(`/api/decision?day=${day}`);
+  const { farmId } = useSelectedFarm();
+  const farm = useApi<FarmInfo>(`/api/farms/${farmId}`);
+  const dec = useApi<DecisionEnvelope>(`/api/farms/${farmId}/decision?day=${day}`);
   const payload = dec.data?.data.payload;
   const plan = payload?.schedule;
   const actions = Object.fromEntries((payload?.packages ?? []).map((p) => [p.target, p.action]));

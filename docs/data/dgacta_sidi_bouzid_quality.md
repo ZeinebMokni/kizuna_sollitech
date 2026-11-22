@@ -48,3 +48,17 @@ Values are kept as published. Flags only mark them.
 3. Which soil-moisture probe model is used, and is there a calibration from mV to water content?
 4. Are the time stamps local time, and do they mark the start or the end of the interval?
 5. How is the station ET0 computed (method and inputs)?
+
+## Automated operations
+
+`scripts/dgacta_archive.py` is the daily archiving entry point. It:
+
+- discovers catalogue resources on every run;
+- stores unchanged response bytes and SHA-256 manifests;
+- rebuilds processed tables and QC flags;
+- avoids duplicate raw files with content-addressed storage;
+- detects observations older than 72 hours and prints an alert;
+- exits non-zero when the catalogue or downloads fail.
+
+The command is intentionally not a machine-learning pipeline. No DGACTA reading is suitable
+for model training until a sustained, calibrated and validated history exists.

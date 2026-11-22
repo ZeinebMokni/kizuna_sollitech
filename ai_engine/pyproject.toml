@@ -15,6 +15,7 @@ dependencies = [
   "uvicorn[standard]>=0.30",
   "google-genai>=3.6.1",
   "truststore>=0.10.5",
+  "python-multipart>=0.0.20",
 ]
 
 [dependency-groups]

@@ -204,3 +204,27 @@ export function useApi<T>(path: string | null) {
     loading: !!path && !current,
   };
 }
+
+export interface FarmSummary {
+  farm_id: string;
+  name: string;
+  kind: string;
+  mode: string;
+  region: string;
+  latitude: number;
+  longitude: number;
+  zones: number;
+  area_ha: number;
+  crops: string[];
+}
+
+export function useSelectedFarm() {
+  const [farmId, setFarmIdState] = useState<string>(() =>
+    typeof window === "undefined" ? "demo-farm" : window.localStorage.getItem("qatra-farm") || "demo-farm",
+  );
+  const setFarmId = (value: string) => {
+    window.localStorage.setItem("qatra-farm", value);
+    setFarmIdState(value);
+  };
+  return { farmId, setFarmId };
+}
