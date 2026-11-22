@@ -1,0 +1,610 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────
+   QATRA — "liquid glass" water palette.
+   Light (default): airy white-aqua #F4FAFB, ink #14323C.
+   Dark (.dark): deep lagoon.
+   Single accent = water blue; coral is reserved for alerts.
+   Every color is an RGB triplet so Tailwind opacity modifiers work.
+   Glass, radius, shadow and motion tokens follow the palette.
+   ────────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: light;
+  --canvas: 244 250 251; /* #F4FAFB */
+  --sunken: 235 244 246; /* #EBF4F6 */
+  --surface: 255 255 255; /* #FFFFFF */
+  --raised: 238 246 248; /* #EEF6F8 */
+  --highlight: 226 239 242; /* #E2EFF2 */
+  --line: 213 229 233; /* #D5E5E9 */
+  --line-strong: 183 208 215; /* #B7D0D7 */
+  --ink: 20 50 60; /* #14323C */
+  --on-accent: 255 255 255; /* #FFFFFF */
+  --shade: 20 80 100; /* #145064 */
+  --accent: 35 117 140; /* #23758C */
+  --accent-hover: 29 102 121; /* #1D6679 */
+  --accent-deep: 21 79 94; /* #154F5E */
+  --brand-50: 11 42 34; /* #0B2A22 */
+  --brand-100: 16 58 47; /* #103A2F */
+  --brand-200: 21 74 60; /* #154A3C */
+  --brand-300: 27 91 74; /* #1B5B4A */
+  --brand-400: 29 106 84; /* #1D6A54 */
+  --brand-500: 59 175 140; /* #3BAF8C */
+  --brand-600: 46 150 119; /* #2E9677 */
+  --brand-700: 38 125 100; /* #267D64 */
+  --brand-800: 205 239 226; /* #CDEFE2 */
+  --brand-900: 226 246 238; /* #E2F6EE */
+  --brand-950: 241 251 247; /* #F1FBF7 */
+  --water-50: 6 34 42; /* #06222A */
+  --water-100: 10 48 58; /* #0A303A */
+  --water-200: 14 63 76; /* #0E3F4C */
+  --water-300: 20 79 95; /* #144F5F */
+  --water-400: 26 98 118; /* #1A6276 */
+  --water-500: 45 140 166; /* #2D8CA6 */
+  --water-600: 35 117 140; /* #23758C */
+  --water-700: 29 102 121; /* #1D6679 */
+  --water-800: 196 230 238; /* #C4E6EE */
+  --water-900: 221 241 245; /* #DDF1F5 */
+  --water-950: 238 248 250; /* #EEF8FA */
+  --sun-50: 58 38 4; /* #3A2604 */
+  --sun-100: 82 54 7; /* #523607 */
+  --sun-200: 107 71 10; /* #6B470A */
+  --sun-300: 126 84 12; /* #7E540C */
+  --sun-400: 138 91 9; /* #8A5B09 */
+  --sun-500: 226 174 72; /* #E2AE48 */
+  --sun-600: 201 146 44; /* #C9922C */
+  --sun-700: 169 120 29; /* #A9781D */
+  --sun-800: 245 225 179; /* #F5E1B3 */
+  --sun-900: 250 238 210; /* #FAEED2 */
+  --sun-950: 253 247 232; /* #FDF7E8 */
+  --clay-50: 62 21 17; /* #3E1511 */
+  --clay-100: 87 29 23; /* #571D17 */
+  --clay-200: 113 38 30; /* #71261E */
+  --clay-300: 140 48 38; /* #8C3026 */
+  --clay-400: 166 58 46; /* #A63A2E */
+  --clay-500: 238 123 107; /* #EE7B6B */
+  --clay-600: 212 96 79; /* #D4604F */
+  --clay-700: 184 77 63; /* #B84D3F */
+  --clay-800: 249 208 201; /* #F9D0C9 */
+  --clay-900: 252 228 224; /* #FCE4E0 */
+  --clay-950: 254 242 240; /* #FEF2F0 */
+  --alert-50: 61 19 15; /* #3D130F */
+  --alert-100: 86 27 21; /* #561B15 */
+  --alert-200: 112 36 28; /* #70241C */
+  --alert-300: 138 45 36; /* #8A2D24 */
+  --alert-400: 168 55 44; /* #A8372C */
+  --alert-500: 224 106 90; /* #E06A5A */
+  --alert-600: 201 72 58; /* #C9483A */
+  --alert-700: 172 58 46; /* #AC3A2E */
+  --alert-800: 247 204 197; /* #F7CCC5 */
+  --alert-900: 252 227 223; /* #FCE3DF */
+  --alert-950: 254 241 239; /* #FEF1EF */
+  --earth-50: 12 33 41; /* #0C2129 */
+  --earth-100: 20 50 60; /* #14323C */
+  --earth-200: 30 64 74; /* #1E404A */
+  --earth-300: 46 85 98; /* #2E5562 */
+  --earth-400: 74 107 118; /* #4A6B76 */
+  --earth-500: 111 139 148; /* #6F8B94 */
+  --earth-600: 148 172 179; /* #94ACB3 */
+  --earth-700: 192 211 216; /* #C0D3D8 */
+  --earth-800: 225 236 239; /* #E1ECEF */
+  --earth-900: 237 245 247; /* #EDF5F7 */
+  --earth-950: 246 250 251; /* #F6FAFB */
+}
+
+.dark {
+  color-scheme: dark;
+  --canvas: 7 26 32; /* #071A20 */
+  --sunken: 6 22 27; /* #06161B */
+  --surface: 13 37 45; /* #0D252D */
+  --raised: 18 48 58; /* #12303A */
+  --highlight: 24 58 69; /* #183A45 */
+  --line: 29 63 73; /* #1D3F49 */
+  --line-strong: 42 83 97; /* #2A5361 */
+  --ink: 230 244 247; /* #E6F4F7 */
+  --on-accent: 255 255 255; /* #FFFFFF */
+  --shade: 0 0 0; /* #000000 */
+  --accent: 35 122 146; /* #237A92 */
+  --accent-hover: 43 139 165; /* #2B8BA5 */
+  --accent-deep: 21 80 98; /* #155062 */
+  --brand-50: 238 251 245; /* #EEFBF5 */
+  --brand-100: 213 245 232; /* #D5F5E8 */
+  --brand-200: 181 237 215; /* #B5EDD7 */
+  --brand-300: 168 230 207; /* #A8E6CF */
+  --brand-400: 125 216 181; /* #7DD8B5 */
+  --brand-500: 77 191 152; /* #4DBF98 */
+  --brand-600: 56 159 125; /* #389F7D */
+  --brand-700: 43 127 100; /* #2B7F64 */
+  --brand-800: 30 92 72; /* #1E5C48 */
+  --brand-900: 21 66 52; /* #154234 */
+  --brand-950: 12 42 33; /* #0C2A21 */
+  --water-50: 234 249 252; /* #EAF9FC */
+  --water-100: 207 242 248; /* #CFF2F8 */
+  --water-200: 163 230 241; /* #A3E6F1 */
+  --water-300: 114 214 232; /* #72D6E8 */
+  --water-400: 76 198 221; /* #4CC6DD */
+  --water-500: 43 179 203; /* #2BB3CB */
+  --water-600: 35 148 170; /* #2394AA */
+  --water-700: 28 118 137; /* #1C7689 */
+  --water-800: 20 85 101; /* #145565 */
+  --water-900: 14 60 72; /* #0E3C48 */
+  --water-950: 8 39 47; /* #08272F */
+  --sun-50: 255 249 236; /* #FFF9EC */
+  --sun-100: 253 240 207; /* #FDF0CF */
+  --sun-200: 250 226 162; /* #FAE2A2 */
+  --sun-300: 246 210 122; /* #F6D27A */
+  --sun-400: 240 194 90; /* #F0C25A */
+  --sun-500: 226 174 72; /* #E2AE48 */
+  --sun-600: 201 147 50; /* #C99332 */
+  --sun-700: 160 116 37; /* #A07425 */
+  --sun-800: 115 83 27; /* #73531B */
+  --sun-900: 78 57 18; /* #4E3912 */
+  --sun-950: 48 35 11; /* #30230B */
+  --clay-50: 255 243 241; /* #FFF3F1 */
+  --clay-100: 255 226 221; /* #FFE2DD */
+  --clay-200: 255 196 186; /* #FFC4BA */
+  --clay-300: 255 165 151; /* #FFA597 */
+  --clay-400: 255 143 127; /* #FF8F7F */
+  --clay-500: 238 123 107; /* #EE7B6B */
+  --clay-600: 212 95 80; /* #D45F50 */
+  --clay-700: 168 74 62; /* #A84A3E */
+  --clay-800: 122 55 46; /* #7A372E */
+  --clay-900: 82 38 32; /* #522620 */
+  --clay-950: 51 23 19; /* #331713 */
+  --alert-50: 255 242 240; /* #FFF2F0 */
+  --alert-100: 255 223 218; /* #FFDFDA */
+  --alert-200: 255 192 182; /* #FFC0B6 */
+  --alert-300: 255 156 143; /* #FF9C8F */
+  --alert-400: 255 133 118; /* #FF8576 */
+  --alert-500: 224 106 90; /* #E06A5A */
+  --alert-600: 201 72 58; /* #C9483A */
+  --alert-700: 162 58 47; /* #A23A2F */
+  --alert-800: 116 41 31; /* #74291F */
+  --alert-900: 78 28 22; /* #4E1C16 */
+  --alert-950: 48 17 13; /* #30110D */
+  --earth-50: 244 250 251; /* #F4FAFB */
+  --earth-100: 230 244 247; /* #E6F4F7 */
+  --earth-200: 207 227 232; /* #CFE3E8 */
+  --earth-300: 179 205 212; /* #B3CDD4 */
+  --earth-400: 143 174 183; /* #8FAEB7 */
+  --earth-500: 111 143 153; /* #6F8F99 */
+  --earth-600: 85 118 128; /* #557680 */
+  --earth-700: 61 92 102; /* #3D5C66 */
+  --earth-800: 38 67 76; /* #26434C */
+  --earth-900: 24 49 57; /* #183139 */
+  --earth-950: 14 34 40; /* #0E2228 */
+}
+
+/* ──────────────────────────── Glass, radius, shadow & motion tokens ──────────────────────────── */
+:root {
+  --font-inter: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-cairo: "Cairo", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+
+  /* Glass recipe (light) — tunable: opacity (--glass-from / --glass-to), blur, border, shadow */
+  --glass-from: rgb(255 255 255 / 0.55);
+  --glass-to: rgb(255 255 255 / 0.22);
+  --glass-bg: linear-gradient(135deg, var(--glass-from), var(--glass-to));
+  --glass-bg-strong: var(--glass-bg);            /* sidebar, top bar, modals, map panels: same recipe */
+  --glass-fallback: rgb(255 255 255 / 0.85);     /* no backdrop-filter support */
+  --glass-border: rgb(255 255 255 / 0.75);
+  --glass-highlight: rgb(255 255 255 / 0.9);     /* brighter top/left inner edge */
+  --glass-reflection: rgb(255 255 255 / 0.10);   /* diagonal light, 8–12% */
+  --glass-blur: 18px;
+  --glass-saturate: 140%;
+  --glass-shadow: 0 20px 40px rgb(45 111 128 / 0.16);
+  --glass-shadow-hover: 0 26px 52px rgb(45 111 128 / 0.2);
+  /* Text on glass (AA on the light glass) */
+  --glass-title: 16 60 72;    /* #103C48 — titles & values */
+  --glass-label: 43 91 103;   /* #2B5B67 — labels */
+
+  /* Page background gradient behind the droplets */
+  --bg-grad-1: #F4FAFB;
+  --bg-grad-2: #E3F3F6;
+  --bg-grad-3: #CFEAF0;
+
+  /* Radius */
+  --radius-card: 24px;
+  --radius-small: 16px;
+
+  /* Solid surfaces (non-glass) */
+  --card-shadow: 0 1px 2px rgb(20 80 100 / 0.05), 0 8px 24px -14px rgb(20 80 100 / 0.18);
+  --card-shadow-hover: 0 2px 4px rgb(20 80 100 / 0.05), 0 16px 36px -16px rgb(20 80 100 / 0.24);
+
+  /* Motion: ease-out / ease-in-out only */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 200ms;
+  --dur-base: 400ms;
+  --dur-sheen: 700ms;
+  --dur-enter: 600ms;
+  --stagger: 80ms;
+
+  /* Background blobs (low saturation) */
+  --blob-1: 127 214 230;   /* #7FD6E6 */
+  --blob-2: 159 223 208;   /* #9FDFD0 */
+  --blob-3: 185 230 242;   /* #B9E6F2 */
+  --blob-opacity: 0.5;
+}
+.dark {
+  --glass-from: rgb(16 44 54 / 0.62);
+  --glass-to: rgb(16 44 54 / 0.32);
+  --glass-fallback: rgb(13 37 45 / 0.92);
+  --glass-border: rgb(255 255 255 / 0.14);
+  --glass-title: 230 244 247;
+  --glass-label: 179 205 212;
+  --bg-grad-1: #071A20;
+  --bg-grad-2: #0A2630;
+  --bg-grad-3: #0E3340;
+  --glass-highlight: rgb(255 255 255 / 0.22);
+  --glass-reflection: rgb(255 255 255 / 0.06);
+  --glass-shadow: 0 20px 50px rgb(0 0 0 / 0.35);
+  --glass-shadow-hover: 0 26px 60px rgb(0 0 0 / 0.45);
+  --card-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 10px 30px -16px rgb(0 0 0 / 0.7);
+  --card-shadow-hover: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 18px 40px -18px rgb(0 0 0 / 0.8);
+  --blob-opacity: 0.28;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  color: rgb(var(--ink));
+  background: rgb(var(--canvas));
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Smooth cross-fade when the theme toggle is used (class added briefly by ThemeToggle) */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 400ms ease, border-color 400ms ease, color 400ms ease, fill 400ms ease,
+    stroke 400ms ease, box-shadow 400ms ease !important;
+}
+
+@layer components {
+  /* ── Background layer (GlassDroplets): aqua gradient + 3 heavily blurred blobs ──
+     z-index -1 keeps it behind every page; page roots stay transparent. */
+  .qa-water-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+    background: linear-gradient(160deg, var(--bg-grad-1) 0%, var(--bg-grad-2) 50%, var(--bg-grad-3) 100%);
+  }
+  .qa-blob {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(100px);
+    opacity: var(--blob-opacity);
+    will-change: transform;
+    animation-timing-function: var(--ease-in-out);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+  }
+  .qa-blob-1 { width: 50vw; height: 50vw; top: -18vw; left: -12vw; background: rgb(var(--blob-1)); animation-name: qa-drift-1; animation-duration: 30s; }
+  .qa-blob-2 { width: 42vw; height: 42vw; top: 18vh; right: -14vw; background: rgb(var(--blob-2)); animation-name: qa-drift-2; animation-duration: 36s; }
+  .qa-blob-3 { width: 46vw; height: 46vw; bottom: -22vw; left: 26vw; background: rgb(var(--blob-3)); animation-name: qa-drift-3; animation-duration: 40s; }
+
+  /* ── Glass teardrops (GlassDroplets): a few clear water drops floating slowly.
+     Only transform (drop) and opacity (highlights) animate. Do not put opacity < 1,
+     filter or will-change: opacity on .qa-tear or its ancestors: that would switch
+     the backdrop refraction off. Hidden below 768px (content is full-width). ── */
+  .qa-tear {
+    position: absolute;
+    transform-origin: 50% 75%;
+    transform: translate3d(0, 0, 0) rotate(var(--rot, 0deg));
+    animation-name: qa-tear-float;
+    animation-timing-function: var(--ease-in-out);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+    will-change: transform;
+  }
+  .qa-tear > * {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  /* real refraction: the background behind the drop is bent, brightened and saturated */
+  .qa-tear-glass {
+    clip-path: url(#qa-tear-clip-unit);
+    -webkit-backdrop-filter: blur(1.5px) saturate(175%) brightness(1.07) contrast(1.06);
+    backdrop-filter: blur(1.5px) saturate(175%) brightness(1.07) contrast(1.06);
+  }
+  /* Legend swatch: water flowing in a pipe */
+  .qa-legend-flow {
+    background: repeating-linear-gradient(90deg, #5FD8EA 0 6px, #FFFFFF 6px 9px);
+    background-size: 18px 100%;
+    box-shadow: 0 0 6px rgb(60 207 224 / 0.7);
+    animation: qa-legend-flow 0.9s linear infinite;
+  }
+  /* ── Parcels: form inputs and the ID tag shown on the map ── */
+  .qa-input {
+    width: 100%;
+    border-radius: 0.75rem;
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--line));
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    color: rgb(var(--ink));
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .qa-input:focus-visible {
+    border-color: rgb(var(--accent));
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.2);
+  }
+  .qa-parcel-tag {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 4px 9px;
+    border-radius: 10px;
+    background: rgb(16 60 72 / 0.82);
+    border: 1px solid rgb(255 255 255 / 0.55);
+    box-shadow: 0 6px 16px rgb(0 0 0 / 0.3);
+    color: #fff;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    transition: transform 200ms var(--ease-out), background-color 200ms ease;
+  }
+  .qa-parcel-tag:hover { transform: translateY(-2px); }
+  .qa-parcel-tag.is-selected { background: rgb(35 117 140 / 0.95); border-color: #3ccfe0; }
+  .qa-parcel-tag-id { font: 700 11px/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0.06em; }
+  .qa-parcel-tag-meta { font-size: 9.5px; opacity: 0.85; white-space: nowrap; }
+  .qa-tear-art {
+    overflow: visible;
+  }
+  .qa-tear-shine {
+    animation-name: qa-tear-shimmer;
+    animation-timing-function: var(--ease-in-out);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+  }
+  @media (max-width: 767px) {
+    .qa-tear { display: none; }
+  }
+
+  /* ── Glass (cards: KPI tiles) ── */
+  .glass {
+    position: relative;
+    isolation: isolate;
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 1px 1px 0 var(--glass-highlight), var(--glass-shadow);
+    border-radius: var(--radius-card);
+  }
+  /* ── Glass (panels: sidebar, top bar, modals, dropdowns, tooltips, map panels) ── */
+  .glass-panel {
+    background: var(--glass-bg-strong);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 1px 1px 0 var(--glass-highlight), var(--glass-shadow);
+  }
+  /* Optional diagonal light reflection */
+  .glass-reflect::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(135deg, var(--glass-reflection) 0%, transparent 45%);
+    z-index: -1;
+  }
+  /* Hover: lift 3px, softer shadow, a gentle light sweep across the glass */
+  .glass-interactive {
+    overflow: hidden;
+    transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+  }
+  .glass-interactive::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.28) 50%, transparent 65%);
+    transform: translateX(-110%);
+    transition: transform var(--dur-sheen) var(--ease-in-out);
+  }
+  .glass-interactive:hover {
+    transform: translateY(-3px);
+    box-shadow: inset 1px 1px 0 var(--glass-highlight), var(--glass-shadow-hover);
+  }
+  .glass-interactive:hover::after {
+    transform: translateX(110%);
+  }
+
+  /* ── Solid cards (tables, text, forms stay readable): soft entrance + gentle lift ── */
+  .qa-card {
+    box-shadow: var(--card-shadow);
+    transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out),
+      border-color var(--dur-fast) ease;
+    animation: qa-rise var(--dur-enter) var(--ease-out) backwards;
+    position: relative;
+  }
+  .qa-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--card-shadow-hover);
+  }
+  .qa-card:nth-child(2) { animation-delay: calc(var(--stagger) * 1); }
+  .qa-card:nth-child(3) { animation-delay: calc(var(--stagger) * 2); }
+  .qa-card:nth-child(4) { animation-delay: calc(var(--stagger) * 3); }
+  .qa-card:nth-child(5) { animation-delay: calc(var(--stagger) * 4); }
+  .qa-card:nth-child(6) { animation-delay: calc(var(--stagger) * 5); }
+  .qa-card:nth-child(n + 7) { animation-delay: calc(var(--stagger) * 6); }
+
+  /* Primary buttons: calm water-blue fill, soft shadow, gentle sheen */
+  .qa-shine {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background-image: none !important;
+    background-color: rgb(var(--accent)) !important;
+    box-shadow: 0 8px 20px -10px rgb(var(--accent) / 0.6);
+    transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-out),
+      background-color var(--dur-fast) ease;
+  }
+  .qa-shine::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.22) 50%, transparent 65%);
+    transform: translateX(-110%);
+    transition: transform var(--dur-sheen) var(--ease-in-out);
+    z-index: -1;
+  }
+  .qa-shine:hover {
+    background-color: rgb(var(--accent-hover)) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 12px 26px -12px rgb(var(--accent) / 0.7);
+  }
+  .qa-shine:hover::before { transform: translateX(110%); }
+
+  /* Calm accent surfaces (formerly animated gradients) */
+  .qa-gradient-bg {
+    background-image: linear-gradient(135deg, rgb(var(--accent)), rgb(var(--accent-deep)));
+  }
+  .qa-gradient-text {
+    background-image: linear-gradient(100deg, rgb(var(--water-500)), rgb(var(--water-400)) 50%, rgb(var(--brand-500)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .qa-glow-border {
+    border: 1px solid var(--glass-border);
+  }
+  .qa-grid-bg {
+    background-image: radial-gradient(rgb(var(--earth-500) / 0.12) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Live dot: slow, soft ripple (no fast pulses) */
+  .qa-live-dot {
+    position: relative;
+    display: inline-block;
+    height: 0.5rem;
+    width: 0.5rem;
+    border-radius: 9999px;
+    background: rgb(var(--brand-500));
+  }
+  .qa-live-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: inherit;
+    animation: qa-soft-ping 3s var(--ease-out) infinite;
+  }
+
+  /* Reservoir wave */
+  .qa-wave {
+    animation: qa-wave-x 7s var(--ease-in-out) infinite alternate;
+  }
+  .qa-wave-slow {
+    animation: qa-wave-x 11s var(--ease-in-out) infinite alternate-reverse;
+  }
+}
+
+/* Fallback when backdrop-filter is unsupported: a more opaque surface */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .glass-panel {
+    background: var(--glass-fallback);
+  }
+}
+
+@keyframes qa-tear-float {
+  0% { transform: translate3d(0, 0, 0) rotate(var(--rot)) scale(1, 1); }
+  50% { transform: translate3d(calc(var(--sx) * 0.6), calc(var(--fy) * 0.55), 0) rotate(var(--rot-end)) scale(1.012, 0.992); }
+  100% { transform: translate3d(var(--sx), var(--fy), 0) rotate(var(--rot)) scale(0.995, 1.008); }
+}
+@keyframes qa-legend-flow {
+  to { background-position: 18px 0; }
+}
+@keyframes qa-tear-shimmer {
+  from { opacity: 1; }
+  to { opacity: 0.7; }
+}
+@keyframes qa-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes qa-soft-ping {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+@keyframes qa-soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+@keyframes qa-wave-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes qa-drift-1 { to { transform: translate(10vw, 8vh) scale(1.08); } }
+@keyframes qa-drift-2 { to { transform: translate(-8vw, 12vh) scale(0.94); } }
+@keyframes qa-drift-3 { to { transform: translate(-12vw, -10vh) scale(1.1); } }
+@keyframes qa-drift-4 { to { transform: translate(6vw, -8vh) scale(1.05); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--line-strong));
+  border-radius: 9999px;
+  border: 2px solid rgb(var(--canvas));
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--accent));
+}
+
+/* MapLibre controls: small glass elements */
+.maplibregl-ctrl-group {
+  background: var(--glass-bg-strong) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-small) !important;
+  overflow: hidden;
+  box-shadow: var(--glass-shadow) !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top-color: rgb(var(--line)) !important;
+}
+.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+.maplibregl-ctrl-scale {
+  background: var(--glass-bg-strong) !important;
+  border-color: rgb(var(--earth-400)) !important;
+  color: rgb(var(--ink)) !important;
+}
+
+/* RTL support */
+[dir="rtl"] {
+  text-align: right;
+}
