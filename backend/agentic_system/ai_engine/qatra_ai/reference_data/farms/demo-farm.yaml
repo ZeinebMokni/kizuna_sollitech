@@ -1,0 +1,73 @@
+# HYPOTHETICAL demo farm. Location, and the weather and soil QATRA fetches for it, are real
+# (farmland west of Sidi Bouzid, Tunisia). Everything else (zones, crops, dates, flows, pump,
+# solar, battery, well cap, quotas, past irrigation) is invented for demonstration.
+schema_version: "1.0"
+farm_id: demo-farm
+name: Demo farm (hypothetical)
+kind: demo
+location:
+  latitude: 35.10
+  longitude: 9.30
+  timezone: Africa/Tunis
+  region: Sidi Bouzid
+soil_depth_m: 1.5
+zones:
+  - zone_id: olive-north
+    name: Olive grove (north)
+    crop: olive
+    season_start: 2025-03-01
+    area_ha: 2.0
+    design_flow_m3h: 12.0
+    application_efficiency: 0.9
+    polygon: [[35.1018, 9.2970], [35.1018, 9.3010], [35.1003, 9.3010], [35.1003, 9.2970]]
+  - zone_id: tomato-east
+    name: Tomato (east)
+    crop: tomato
+    season_start: 2025-04-01
+    area_ha: 1.0
+    design_flow_m3h: 10.0
+    application_efficiency: 0.9
+    polygon: [[35.1000, 9.3012], [35.1000, 9.3030], [35.0991, 9.3030], [35.0991, 9.3012]]
+  - zone_id: potato-south
+    name: Potato (south)
+    crop: potato
+    season_start: 2025-03-01
+    area_ha: 1.0
+    design_flow_m3h: 10.0
+    application_efficiency: 0.9
+    polygon: [[35.0989, 9.2970], [35.0989, 9.3008], [35.0980, 9.3008], [35.0980, 9.2970]]
+pump:
+  max_flow_m3h: 15
+  max_simultaneous_zones: 1
+  total_head_m: 60
+  pump_efficiency: 0.55
+water:
+  max_volume_per_day_m3: 120
+  seasonal_m3_per_ha: 6000
+  irrigation_ec_ds_m: 1.5
+energy:
+  pv_rated_kw: 12
+  battery:
+    capacity_kwh: 20
+    soc_initial_kwh: 10
+    soc_min_kwh: 4
+    soc_max_kwh: 20
+    max_charge_kw: 5
+    max_discharge_kw: 5
+  seasonal_kwh_per_ha: 3000
+sensors: []  # none: the demo water balance is modelled, not measured
+suitability_candidates:
+  - {crop: tomato, planting_month: 4, planting_day: 1}
+  - {crop: potato, planting_month: 2, planting_day: 1}
+  - {crop: durum_wheat, planting_month: 11, planting_day: 15}
+  - {crop: olive, planting_month: 3, planting_day: 1}
+  - {crop: citrus, planting_month: 3, planting_day: 1}
+  - {crop: date_palm, planting_month: 3, planting_day: 1}
+replay:
+  default_day: 2025-06-15
+  weather_start: 2025-03-01
+  weather_end: 2025-09-10
+  climate_years: [2015, 2024]
+assumed_past_irrigation:
+  mm_per_event: 12
+  every_days: 4

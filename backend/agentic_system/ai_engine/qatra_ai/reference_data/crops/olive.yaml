@@ -1,0 +1,22 @@
+code: olive
+names: {en: Olive, fr: Olivier, ar: زيتون}
+perennial: true
+# Annual cycle starting at the cycle start date given per orchard (e.g. 1 March).
+stage_lengths_days: {initial: 30, development: 90, mid: 60, late: 185}
+kc: {ini: 0.65, mid: 0.70, end: 0.70}
+max_height_m: 4.0
+root_depth: {initial_m: 1.20, max_m: 1.20}
+depletion_fraction_p: 0.65
+temperature: {heat_stress_tmax_c: 40, heat_sensitive_stages: [development], frost_damage_tmin_c: -7, verified: false}
+citations:
+  - {field: temperature, source: "QATRA placeholder", note: "Approximate damaging temperatures; NOT verified - must be set by an agronomist"}
+  - {field: kc, source: "FAO-56 Table 12", note: "Olive trees, 40-60% ground cover"}
+  - {field: root_depth, source: "FAO-56 Table 22", note: "Lower bound of 1.2-1.7 m; established trees so initial = max"}
+  - {field: depletion_fraction_p, source: "FAO-56 Table 22"}
+  - {field: stage_lengths_days, source: "QATRA placeholder", note: "Kc varies little across the year; stage split is NOT from FAO-56 and must be reviewed"}
+  - {field: max_height_m, source: "FAO-56 Table 12 (3-5 m)"}
+review_status: needs_review
+limitations:
+  - "No Ky value entered: seasonal yield-response to water deficit is not computed for olive."
+  - "Kc depends strongly on canopy cover; adjust for young or sparse orchards (not yet implemented)."
+  - "Many Tunisian olive groves are rainfed; irrigation logic applies to irrigated orchards only."

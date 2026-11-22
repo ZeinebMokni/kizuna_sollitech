@@ -3,6 +3,7 @@ import { Farm, FarmZone, MapLayerMode, HealthStatus, SatelliteScene, DrawingStat
 import { DEMO_FARM } from '@/lib/mockData';
 import { SENTINEL2_TUNISIA_SCENES } from '@/lib/geo/providers';
 import { calculatePolygonAreaHectares, calculateCentroid } from '@/lib/geo/geodesic';
+import { fetchFarm, queueIrrigationCommand } from '@/lib/qatra/client';
 
 export interface SampledPixel {
   lng: number;
@@ -39,6 +40,8 @@ interface FarmState {
 
   // Drawing & Zone boundary editing
   drawingState: DrawingState;
+  backendConnected: boolean;
+  backendError: string | null;
 
   // Actions
   selectZone: (zoneId: string | null) => void;
@@ -72,6 +75,7 @@ interface FarmState {
   toggleSimulation: () => void;
   tickSimulation: () => void;
   updateZoneThresholds: (zoneId: string, min: number, max: number) => void;
+  hydrateFarm: () => Promise<void>;
 }
 
 export const useFarmStore = create<FarmState>((set, get) => ({
@@ -99,6 +103,22 @@ export const useFarmStore = create<FarmState>((set, get) => ({
     isDrawing: false,
     drawingType: null,
     currentPoints: [],
+  },
+  backendConnected: false,
+  backendError: null,
+
+  hydrateFarm: async () => {
+    try {
+      const { farm } = await fetchFarm();
+      set({
+        farm,
+        backendConnected: true,
+        backendError: null,
+        selectedZoneId: farm.zones.find((zone) => zone.status === 'critical')?.id ?? farm.zones[0]?.id ?? null,
+      });
+    } catch (error) {
+      set({ backendConnected: false, backendError: error instanceof Error ? error.message : 'Backend indisponible' });
+    }
   },
 
   selectZone: (zoneId) => set({ selectedZoneId: zoneId }),
@@ -250,6 +270,8 @@ export const useFarmStore = create<FarmState>((set, get) => ({
   startIrrigation: (zoneId) => {
     if (get().emergencyStopActive) return;
 
+    void queueIrrigationCommand(zoneId, 'open').catch(() => undefined);
+
     set((state) => {
       const updatedZones = state.farm.zones.map((zone) => {
         if (zone.id === zoneId) {
@@ -272,6 +294,7 @@ export const useFarmStore = create<FarmState>((set, get) => ({
   },
 
   stopIrrigation: (zoneId) => {
+    void queueIrrigationCommand(zoneId, 'close').catch(() => undefined);
     set((state) => {
       const updatedZones = state.farm.zones.map((zone) => {
         if (zone.id === zoneId) {

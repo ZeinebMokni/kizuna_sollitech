@@ -8,7 +8,9 @@ backend/.env
 .next-*/
 node_modules/
 *.tsbuildinfo
+.venv/
 backend/__pycache__/
+**/__pycache__/
 
 # PDF rendering intermediates
 tmp/

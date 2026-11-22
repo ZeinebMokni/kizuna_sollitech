@@ -566,6 +566,14 @@ html.theme-transition *::after {
 }
 
 /* Custom scrollbars */
+.qa-chart-line {
+  stroke-dasharray: 1400;
+  stroke-dashoffset: 1400;
+  animation: qa-draw-curve 2.2s cubic-bezier(.22,1,.36,1) forwards;
+}
+.qa-chart-line-delay { animation-delay: .35s; }
+@keyframes qa-draw-curve { to { stroke-dashoffset: 0; } }
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

@@ -47,8 +47,12 @@ app.add_middleware(
 
 # Real Sentinel-2 data (Copernicus Data Space) — see sentinel.py
 from sentinel import router as sentinel_router  # noqa: E402
+from agentic_system.router import router as agentic_router  # noqa: E402
+from database.router import router as database_router  # noqa: E402
 
 app.include_router(sentinel_router)
+app.include_router(agentic_router)
+app.include_router(database_router)
 
 
 # ─────────────────────────────────────────────
@@ -130,7 +134,9 @@ async def root():
 
 @app.get("/health", tags=["Health"])
 async def health():
-    return {"status": "ok", "database": "TODO: check PostGIS", "redis": "TODO: check cache"}
+    from database.router import database_health
+
+    return {"status": "ok", "database": database_health(), "redis": "not_configured"}
 
 
 # ─────────────────────────────────────────────
@@ -143,7 +149,45 @@ async def get_farm(farm_id: str):
     Récupère la fiche complète d'une exploitation agricole.
     TODO: Implémenter requête PostgreSQL + PostGIS (ST_AsGeoJSON)
     """
-    # Stub — retourne données Domaine El-Baraka (Sidi Bouzid demo)
+    # Prefer the persisted farm graph when PostgreSQL is available.
+    try:
+        from database.models import Farm
+        from database.session import SessionLocal
+
+        with SessionLocal() as session:
+            farm = session.get(Farm, farm_id)
+            if farm is not None:
+                return {
+                    "id": farm.id,
+                    "name": farm.name,
+                    "owner_name": "Tarak Ben Salem",
+                    "governorate": farm.governorate or "",
+                    "delegation": farm.delegation or "",
+                    "total_area_ha": farm.area_ha or 0,
+                    "center_coordinates": (farm.center_geojson or {}).get("coordinates", [9.665, 37.04]),
+                    "solar_capacity_kw": 18.5,
+                    "water_source": "Puits profond 145m",
+                    "zones": [
+                        {
+                            "id": zone.id,
+                            "farm_id": zone.farm_id,
+                            "name": zone.name,
+                            "crop_type": zone.crop_type or "",
+                            "area_ha": zone.area_ha or 0,
+                            "target_moisture_min": zone.target_moisture_min or 30,
+                            "target_moisture_max": zone.target_moisture_max or 60,
+                            "status": zone.status,
+                            "polygon": zone.polygon_geojson,
+                        }
+                        for zone in farm.zones
+                    ],
+                    "source": "postgresql",
+                }
+    except Exception:
+        # Keep the demo contract available while PostgreSQL is offline.
+        pass
+
+    # Fallback demo response when PostgreSQL is unavailable or the farm is unknown.
     return {
         "id": farm_id,
         "name": "Domaine El-Baraka",
@@ -280,14 +324,37 @@ async def send_irrigation_command(command: IrrigationCommand):
     TODO: Payload JSON : {"action": "open", "duration_minutes": 45, "timestamp": "..."}
     TODO: Vérifier sécurité : arrêt d'urgence actif → rejeter commande
     """
+    persisted = False
+    farm_id = "farm-sbz-01"
+    try:
+        from database.models import FarmZone, IrrigationCommand as DbIrrigationCommand
+        from database.session import SessionLocal
+
+        with SessionLocal.begin() as session:
+            zone = session.get(FarmZone, command.zone_id)
+            if zone is not None:
+                farm_id = zone.farm_id
+                session.add(DbIrrigationCommand(
+                    farm_id=farm_id,
+                    zone_id=command.zone_id,
+                    action=command.action,
+                    duration_minutes=command.duration_minutes,
+                    status="queued",
+                    mqtt_topic=f"qatra/{farm_id}/zones/{command.zone_id}/valve",
+                ))
+                persisted = True
+    except Exception:
+        pass
+
     return {
         "status": "command_queued",
         "zone_id": command.zone_id,
         "action": command.action,
         "duration_minutes": command.duration_minutes,
-        "mqtt_topic": f"qatra/farm-sbz-01/zones/{command.zone_id}/valve",
+        "mqtt_topic": f"qatra/{farm_id}/zones/{command.zone_id}/valve",
         "acknowledged_at": datetime.datetime.utcnow().isoformat() + "Z",
-        "disclaimer": "Commande simulée en mode hackathon - vanne physique non connectée",
+        "persisted": persisted,
+        "disclaimer": "Commande enregistrée; publication MQTT physique à connecter au gateway ESP32.",
     }
 
 

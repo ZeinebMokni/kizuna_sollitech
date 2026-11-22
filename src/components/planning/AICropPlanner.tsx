@@ -13,20 +13,28 @@ import {
   Calendar,
   Layers,
   ChevronDown,
-  Info
+  Info,
+  BookOpen,
+  ExternalLink,
+  BarChart3
 } from 'lucide-react';
 import { DEMO_CROP_RECOMMENDATIONS } from '@/lib/mockData';
 import { CropRecommendation } from '@/types';
 import { cn, formatNumber, formatCurrencyTND } from '@/lib/utils';
+import { useFarmStore } from '@/stores/useFarmStore';
 
 export function AICropPlanner() {
+  const { farm } = useFarmStore();
   const [selectedCropId, setSelectedCropId] = useState<string>('rec-01');
   const [selectedSeason, setSelectedSeason] = useState('Hiver 2026 / Printemps 2027');
   const [availableWaterM3, setAvailableWaterM3] = useState(5000);
   const [hasSolar, setHasSolar] = useState(true);
   const [planCreated, setPlanCreated] = useState(false);
+  const [showSources, setShowSources] = useState(true);
 
   const selectedCrop = DEMO_CROP_RECOMMENDATIONS.find((c) => c.id === selectedCropId) || DEMO_CROP_RECOMMENDATIONS[0];
+  const dominantSoil = Array.from(new Set(farm.zones.map((zone) => zone.soilType))).filter(Boolean)[0] ?? 'Sablo-limoneux';
+  const soilFit = getSoilFit(selectedCrop.cropName, dominantSoil);
 
   return (
     <div className="space-y-6">
@@ -108,6 +116,10 @@ export function AICropPlanner() {
         <h3 className="text-sm font-bold uppercase tracking-wider text-earth-400 mb-3">
           Classement des Cultures Évaluées par l'IA
         </h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-500/20 bg-brand-500/5 px-3 py-2 text-[11px]">
+          <span className="flex items-center gap-2 text-earth-300"><Layers className="h-3.5 w-3.5 text-brand-400" /> Sol détecté : <strong className="text-ink">{dominantSoil}</strong></span>
+          <span className="font-bold text-brand-400">Adéquation actuelle : {soilFit}/100</span>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {DEMO_CROP_RECOMMENDATIONS.map((crop) => {
             const isSelected = crop.id === selectedCropId;
@@ -117,6 +129,15 @@ export function AICropPlanner() {
               <div
                 key={crop.id}
                 onClick={() => setSelectedCropId(crop.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setSelectedCropId(crop.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
                 className={cn(
                   "p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative",
                   isSelected
@@ -161,7 +182,14 @@ export function AICropPlanner() {
                       {formatCurrencyTND(crop.netMarginTndHa)}/Ha
                     </span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-earth-500 flex items-center gap-1"><Layers className="h-3 w-3 text-brand-400" /> Compatibilité sol</span>
+                    <span className="font-mono font-bold text-brand-400">{getSoilFit(crop.cropName, dominantSoil)}/100</span>
+                  </div>
                 </div>
+                <span className={cn('mt-3 inline-flex items-center gap-1 text-[10px] font-semibold', isSelected ? 'text-brand-400' : 'text-earth-500')}>
+                  <Info className="h-3 w-3" /> Cliquer pour voir l’analyse et les sources
+                </span>
               </div>
             );
           })}
@@ -262,7 +290,89 @@ export function AICropPlanner() {
             </ul>
           </div>
         </div>
+
+        <div className="mt-6 rounded-xl border border-brand-500/25 bg-brand-500/5 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowSources((current) => !current)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-brand-500/5"
+            aria-expanded={showSources}
+          >
+            <span className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-brand-400" />
+              <span>
+                <span className="block text-xs font-bold uppercase tracking-wider text-brand-400">Analyse IA & sources</span>
+                <span className="block mt-0.5 text-[11px] text-earth-400">Pourquoi cette note a été calculée pour {selectedCrop.cropName}</span>
+              </span>
+            </span>
+            <ChevronDown className={cn('h-4 w-4 text-brand-400 transition-transform', showSources && 'rotate-180')} />
+          </button>
+
+          {showSources && (
+            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_.8fr] gap-4 border-t border-brand-500/15 p-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-ink">
+                  <BarChart3 className="h-3.5 w-3.5 text-water-400" /> Lecture du modèle
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <AnalysisSignal label="Adéquation eau" value={`${Math.max(0, Math.round(100 - (selectedCrop.waterRequirementM3Ha / Math.max(availableWaterM3, 1)) * 100))}/100`} />
+                  <AnalysisSignal label="Compatibilité solaire" value={`${selectedCrop.solarFitScore}/100`} />
+                  <AnalysisSignal label="Résilience" value={selectedCrop.droughtResistance} />
+                </div>
+                <div className="mt-3 rounded-lg border border-brand-500/20 bg-surface px-3 py-2 text-[11px] text-earth-300">
+                  <strong className="text-brand-400">Sol pris en compte :</strong> {dominantSoil}. {soilExplanation(selectedCrop.cropName, dominantSoil)}
+                </div>
+                <p className="text-[11px] leading-5 text-earth-300">
+                  Le score combine le besoin en eau, la marge nette projetée, la compatibilité avec l’énergie disponible,
+                  la résistance à la sécheresse et les risques agronomiques listés ci-dessus. Il est recalculé avec vos paramètres.
+                </p>
+              </div>
+              <div className="rounded-lg border border-line bg-surface p-3">
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-ink">
+                  <BookOpen className="h-3.5 w-3.5 text-brand-400" /> Sources utilisées
+                </div>
+                <div className="mt-2 space-y-2">
+                  {[
+                    ['Marché tunisien', 'Prévision de demande, prix et marge estimée'],
+                    ['Données pédoclimatiques', 'Sol, saison, évapotranspiration et stress hydrique'],
+                    ['Bilan eau & solaire', `${formatNumber(availableWaterM3)} m³ disponibles · ${hasSolar ? 'solaire actif' : 'réseau STEG'}`],
+                  ].map(([name, detail]) => (
+                    <div key={name} className="flex items-start justify-between gap-3 rounded-lg bg-raised px-2.5 py-2">
+                      <div><p className="text-[10px] font-semibold text-ink">{name}</p><p className="mt-0.5 text-[10px] leading-4 text-earth-500">{detail}</p></div>
+                      <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 text-water-400" />
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-[9px] leading-4 text-earth-500">Sources de démonstration · à remplacer par les flux connectés QATRA avant décision opérationnelle.</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
+}
+
+function AnalysisSignal({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg border border-line bg-surface px-2.5 py-2"><p className="text-[9px] text-earth-500">{label}</p><p className="mt-1 text-xs font-black text-ink">{value}</p></div>;
+}
+
+function getSoilFit(cropName: string, soilType: string) {
+  const soil = soilType.toLowerCase();
+  const crop = cropName.toLowerCase();
+  if (soil.includes('sablo') && crop.includes('piment')) return 96;
+  if (soil.includes('sablo') && crop.includes('grenad')) return 91;
+  if (soil.includes('sablo') && crop.includes('fenouil')) return 84;
+  if (soil.includes('argil') && crop.includes('past')) return 74;
+  if (soil.includes('limon')) return 84;
+  return 70;
+}
+
+function soilExplanation(cropName: string, soilType: string) {
+  const crop = cropName.toLowerCase();
+  const soil = soilType.toLowerCase();
+  if (soil.includes('sablo') && crop.includes('piment')) return 'Le drainage naturel favorise l’enracinement du piment ; une irrigation fractionnée évite le stress hydrique.';
+  if (soil.includes('sablo') && crop.includes('grenad')) return 'La texture filtrante convient au grenadier ; maintenez une réserve d’eau régulière pendant la nouaison.';
+  if (soil.includes('argil')) return 'La rétention d’eau est favorable, mais surveillez le drainage et le compactage.';
+  return 'La structure du sol est compatible, avec une gestion de l’humidité adaptée au cycle de la culture.';
 }

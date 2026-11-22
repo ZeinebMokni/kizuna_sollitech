@@ -1,0 +1,25 @@
+code: potato
+names: {en: Potato, fr: Pomme de terre, ar: بطاطا}
+perennial: false
+stage_lengths_days: {initial: 25, development: 30, mid: 45, late: 30}
+kc: {ini: 0.50, mid: 1.15, end: 0.75}
+max_height_m: 0.6
+root_depth: {initial_m: 0.15, max_m: 0.40}
+depletion_fraction_p: 0.35
+ky_total: 1.10
+ky_stage: {initial: 0.45, development: 0.45, mid: 0.80, late: 0.20}
+salinity: {threshold_ece_ds_m: 1.7, slope_pct_per_ds_m: 12.0}
+temperature: {heat_stress_tmax_c: 30, heat_sensitive_stages: [mid], frost_damage_tmin_c: -1, verified: false}
+citations:
+  - {field: temperature, source: "QATRA placeholder", note: "Approximate damaging temperatures; NOT verified - must be set by an agronomist"}
+  - {field: stage_lengths_days, source: "FAO-56 Table 11", note: "Semi-arid range; verify season (spring / late-season / arrière-saison) for Tunisia"}
+  - {field: kc, source: "FAO-56 Table 12"}
+  - {field: root_depth, source: "FAO-56 Table 22", note: "Lower bound of 0.4-0.6 m range"}
+  - {field: depletion_fraction_p, source: "FAO-56 Table 22"}
+  - {field: ky_total, source: "FAO-33"}
+  - {field: ky_stage, source: "FAO-33", note: "vegetative->initial/development, tuber initiation->mid (max of mid periods), ripening->late"}
+  - {field: salinity, source: "FAO-29"}
+  - {field: root_depth.initial_m, source: "QATRA assumption"}
+review_status: needs_review
+limitations:
+  - "Parameters are international reference values, not calibrated for Tunisian varieties or practices."

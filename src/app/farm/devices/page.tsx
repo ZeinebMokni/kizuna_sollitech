@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { DEMO_DEVICES } from '@/lib/mockData';
+import { fetchDevices } from '@/lib/qatra/client';
 import { useFarmStore } from '@/stores/useFarmStore';
 import type { Device, DeviceType, FarmZone } from '@/types';
 import { cn } from '@/lib/utils';
@@ -102,7 +103,14 @@ const CONNECTION_STYLE = {
   water: { color: '#247eaa', label: 'Eau / hydraulique' },
 };
 
+function connectionPriority(connection: Connection): 1 | 2 | 3 {
+  if (connection.id.includes('alert') || connection.id.includes('gateway-pump') || connection.id.includes('solar-pump') || connection.id.includes('pump-valve')) return 1;
+  if (connection.id.includes('soil') || connection.id.includes('battery') || connection.id.includes('custom')) return 2;
+  return 3;
+}
+
 export default function DevicesPage() {
+  const [liveDevices, setLiveDevices] = useState(DEMO_DEVICES);
   const [nodes, setNodes] = useState<CanvasNode[]>(INITIAL_NODES);
   const [connections, setConnections] = useState<Connection[]>(CONNECTIONS);
   const [isSimulating, setIsSimulating] = useState(true);
@@ -115,7 +123,19 @@ export default function DevicesPage() {
   const onlineCount = nodes.filter((node) => node.status === 'online').length;
   const { farm, emergencyStopActive } = useFarmStore();
   const criticalZones = farm.zones.filter((zone) => zone.status === 'critical');
-  const attentionDevices = DEMO_DEVICES.filter((device) => device.status === 'alert' || device.status === 'warning' || device.status === 'offline');
+  const attentionDevices = liveDevices.filter((device) => device.status === 'alert' || device.status === 'warning' || device.status === 'offline');
+
+  useEffect(() => {
+    void fetchDevices().then((remoteDevices) => {
+      const merged = DEMO_DEVICES.map((demo) => {
+        const remote = remoteDevices.find((item) => item.kind === demo.type && (!item.zone_id || item.zone_id === demo.zoneId));
+        return remote ? { ...demo, id: remote.id, status: remote.status as typeof demo.status } : demo;
+      });
+      setLiveDevices(merged);
+    }).catch(() => {
+      // Keep the existing demo workflow visible when the API is unavailable.
+    });
+  }, []);
 
   useEffect(() => {
     if (!isSimulating) return;
@@ -297,13 +317,16 @@ export default function DevicesPage() {
                   const y2 = to.y + 38;
                   const curve = Math.max(35, Math.abs(x2 - x1) * 0.35);
                   const path = 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + curve) + ' ' + y1 + ', ' + (x2 - curve) + ' ' + y2 + ', ' + x2 + ' ' + y2;
-                  const active = index === activeEvent && isSimulating;
+                  const priority = connectionPriority(connection);
+                  const active = isSimulating;
+                  const focused = index === activeEvent;
+                  const animationDuration = priority === 1 ? '1.4s' : priority === 2 ? '2.2s' : '3.2s';
                   const connectionStyle = CONNECTION_STYLE[connection.kind];
                   return (
                     <g key={connection.id} onClick={() => setSelectedConnectionId(connection.id)} className="cursor-pointer">
                       <path d={path} fill="none" stroke="transparent" strokeWidth="14" />
-                      <path d={path} fill="none" stroke={connectionStyle.color} strokeOpacity={selectedConnectionId === connection.id ? 1 : active ? 1 : 0.72} strokeWidth={selectedConnectionId === connection.id ? 5 : active ? 3.5 : 2.4} strokeDasharray={connection.kind === 'data' ? '7 5' : undefined} markerEnd={'url(#arrow-' + connection.kind + ')'} />
-                      {active && <circle r="5" fill={connectionStyle.color}><animateMotion dur="2.2s" repeatCount="indefinite" path={path} /></circle>}
+                      <path d={path} fill="none" stroke={connectionStyle.color} strokeOpacity={selectedConnectionId === connection.id ? 1 : focused ? 1 : priority === 1 ? 0.92 : priority === 2 ? 0.72 : 0.42} strokeWidth={selectedConnectionId === connection.id ? 5 : priority === 1 ? 3.5 : priority === 2 ? 2.8 : 2} strokeDasharray={connection.kind === 'data' ? '7 5' : undefined} markerEnd={'url(#arrow-' + connection.kind + ')'} />
+                      {active && <circle r={priority === 1 ? 5 : 3.5} fill={connectionStyle.color}><animateMotion dur={animationDuration} repeatCount="indefinite" path={path} /></circle>}
                     </g>
                   );
                 })}

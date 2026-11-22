@@ -54,12 +54,19 @@ export function AppShell({ children }: AppShellProps) {
     isSimulating,
     toggleSimulation,
     tickSimulation,
+    hydrateFarm,
+    backendConnected,
   } = useFarmStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
+
+  // Load the persisted farm graph once when the shell mounts.
+  useEffect(() => {
+    void hydrateFarm();
+  }, [hydrateFarm]);
 
   // Simulation timer
   useEffect(() => {

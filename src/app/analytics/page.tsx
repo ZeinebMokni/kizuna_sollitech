@@ -478,17 +478,28 @@ function ZoneYieldChart({ zones }: { zones: any[] }) {
 /* ════════════════════════════════════════════════════════════════════════
    KPI STAT CARD
    ════════════════════════════════════════════════════════════════════════ */
-function CombinedPerformanceChart({ savedPct, zones, selectedZone, horizon, liveTick }: { savedPct: number; zones: Farm['zones']; selectedZone: string; horizon: number; liveTick: number }) {
+function ImpactSolution({ impact, savedPct, totalEnergy, criticalZones }: { impact: string; savedPct: number; totalEnergy: number; criticalZones: number }) {
+  const solutions: Record<string, { title: string; result: string; action: string; evidence: string }> = {
+    water: { title: 'Solution eau · irrigation ciblée', result: `${savedPct}% d’eau économisée vs référence`, action: 'Maintenir le goutte-à-goutte par zone et lancer les cycles uniquement sous le seuil d’humidité.', evidence: 'Sondes d’humidité, compteurs d’eau et historique de la référence classique.' },
+    energy: { title: 'Solution énergie · pompage au pic solaire', result: `${totalEnergy.toFixed(1)} kWh/j consommés par les zones`, action: 'Programmer le pompage entre 10:00 et 16:00, puis charger la batterie avant tout recours au réseau.', evidence: 'Onduleur photovoltaïque, BMS batterie et télémétrie de la pompe.' },
+    impact: { title: 'Solution agronomique · sécuriser le rendement', result: `${criticalZones} zone(s) critique(s) à traiter`, action: 'Prioriser la zone la plus sèche, vérifier le sol sur le terrain et documenter le résultat après intervention.', evidence: 'État des zones, humidité du sol, NDVI et journal des décisions.' },
+  };
+  const solution = solutions[impact] ?? solutions.water;
+  return <div className="mt-4 rounded-xl border border-water-500/30 bg-water-500/5 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-wider text-water-400">Impact sélectionné · solution QATRA</p><h3 className="mt-1 text-sm font-bold text-ink">{solution.title}</h3></div><span className="rounded-full bg-brand-500/10 px-2 py-1 text-[10px] font-bold text-brand-400">{solution.result}</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><div className="rounded-lg border border-line bg-surface p-2.5"><p className="text-[9px] font-bold uppercase tracking-wider text-earth-500">Action proposée</p><p className="mt-1 text-[11px] leading-4 text-earth-300">{solution.action}</p></div><div className="rounded-lg border border-line bg-surface p-2.5"><p className="text-[9px] font-bold uppercase tracking-wider text-earth-500">Pourquoi cette solution</p><p className="mt-1 text-[11px] leading-4 text-earth-300">{solution.evidence}</p></div></div></div>;
+}
+
+function CombinedPerformanceChart({ savedPct, zones, selectedZone, horizon, liveTick, selectedImpact, onSelectImpact }: { savedPct: number; zones: Farm['zones']; selectedZone: string; horizon: number; liveTick: number; selectedImpact: string; onSelectImpact: (impact: string) => void }) {
   const W = 760; const H = 280; const pad = { top: 22, right: 26, bottom: 38, left: 42 };
   const chartW = W - pad.left - pad.right; const chartH = H - pad.top - pad.bottom;
   const days = ['J-6', 'J-5', 'J-4', 'J-3', 'J-2', 'J-1', 'Aujourd’hui'];
   const live = (liveTick % 3) - 1;
   const zoneFactor = selectedZone === 'all' ? 1 : Math.max(0.7, (zones.find((zone) => zone.id === selectedZone)?.dailyWaterLiters ?? 1) / Math.max(...zones.map((zone) => zone.dailyWaterLiters)));
   const water = DEMO_WATER_BASELINE.last7DaysLiters.map((value) => Math.max(0, Math.min(100, Math.round((1 - value / DEMO_WATER_BASELINE.classicIrrigationLitersPerDay) * 100 * zoneFactor + live))));
-  const horizonFactor = horizon === 7 ? 1 : horizon === 14 ? 1.08 : 1.16;
-  const energy = [62, 68, 73, 78, 82, 86, 89].map((value) => Math.min(100, Math.round(value * horizonFactor + live)));
-  const impact = [18, 21, 24, 28, 31, 35, Math.max(35, savedPct)].map((value) => Math.min(100, Math.round(value * zoneFactor)));
-  const prediction = [20, 24, 27, 31, 35, 38, Math.min(100, Math.max(38, savedPct + 3))].map((value) => Math.min(100, Math.round(value * horizonFactor)));
+  const horizonFactor = horizon === 7 ? 1 : horizon === 14 ? 1.04 : 1.08;
+  const energyNow = Math.min(100, Math.round((14.8 / (14.8 + 6.8 + 0.9)) * 100));
+  const energy = [energyNow - 18, energyNow - 14, energyNow - 10, energyNow - 7, energyNow - 4, energyNow - 2, energyNow].map((value) => Math.min(100, Math.max(0, Math.round(value * horizonFactor + live))));
+  const impact = [Math.max(8, savedPct - 18), Math.max(10, savedPct - 14), Math.max(12, savedPct - 10), Math.max(14, savedPct - 7), Math.max(16, savedPct - 4), Math.max(18, savedPct - 2), Math.max(0, savedPct)].map((value) => Math.min(100, Math.round(value * zoneFactor)));
+  const prediction = impact.map((value, index) => Math.min(100, Math.round((value + (index === impact.length - 1 ? 4 : 3)) * horizonFactor)));
   const x = (index: number) => pad.left + (index / (days.length - 1)) * chartW;
   const y = (value: number) => pad.top + chartH - (value / 100) * chartH;
   const path = (values: number[]) => values.map((value, index) => (index === 0 ? 'M ' : 'L ') + x(index).toFixed(1) + ' ' + y(value).toFixed(1)).join(' ');
@@ -498,12 +509,12 @@ function CombinedPerformanceChart({ savedPct, zones, selectedZone, horizon, live
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-earth-400"><span>Indice comparatif 0–100 · chaque courbe est ramenée à sa propre unité</span><span className="flex items-center gap-1.5"><Info className="h-3 w-3 text-water-400" /> Pointillés = prévision système</span></div>
       <svg viewBox={'0 0 ' + W + ' ' + H} className="h-auto w-full" role="img" aria-label="Courbes combinées de l’eau, de l’énergie et de l’impact agronomique">
         {Array.from({ length: 5 }).map((_, index) => { const value = index * 25; return <g key={value}><line x1={pad.left} x2={W - pad.right} y1={y(value)} y2={y(value)} stroke="currentColor" strokeOpacity="0.1" /><text x={pad.left - 8} y={y(value) + 3} textAnchor="end" fontSize="9" fill="currentColor" fillOpacity="0.5">{value}</text></g>; })}
-        <path d={path(water)} fill="none" stroke="#2BB3CB" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <path d={path(energy)} fill="none" stroke="#E2AE48" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <path d={path(impact)} fill="none" stroke="#4DBF98" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path onClick={() => onSelectImpact('water')} className="cursor-pointer" d={path(water)} fill="none" stroke="#2BB3CB" strokeWidth={selectedImpact === 'water' ? '6' : '3'} strokeLinecap="round" strokeLinejoin="round" />
+        <path onClick={() => onSelectImpact('energy')} className="cursor-pointer" d={path(energy)} fill="none" stroke="#E2AE48" strokeWidth={selectedImpact === 'energy' ? '6' : '3'} strokeLinecap="round" strokeLinejoin="round" />
+        <path onClick={() => onSelectImpact('impact')} className="cursor-pointer" d={path(impact)} fill="none" stroke="#4DBF98" strokeWidth={selectedImpact === 'impact' ? '6' : '3'} strokeLinecap="round" strokeLinejoin="round" />
         <path d={path(prediction)} fill="none" stroke="#E06A5A" strokeWidth="2" strokeDasharray="7 5" strokeLinecap="round" />
         {days.map((day, index) => <g key={day}><line x1={x(index)} x2={x(index)} y1={pad.top + chartH} y2={pad.top + chartH + 5} stroke="currentColor" strokeOpacity="0.3" /><text x={x(index)} y={H - 10} textAnchor="middle" fontSize="9" fill="currentColor" fillOpacity="0.55">{day}</text></g>)}
-        {[water, energy, impact].map((series, seriesIndex) => series.map((value, index) => <circle key={seriesIndex + '-' + index} cx={x(index)} cy={y(value)} r="3.5" fill={seriesIndex === 0 ? '#2BB3CB' : seriesIndex === 1 ? '#E2AE48' : '#4DBF98'} stroke="#0e3c48" strokeWidth="1.5" />))}
+        {[water, energy, impact].map((series, seriesIndex) => series.map((value, index) => { const impactId = seriesIndex === 0 ? 'water' : seriesIndex === 1 ? 'energy' : 'impact'; return <circle onClick={() => onSelectImpact(impactId)} className="cursor-pointer" key={seriesIndex + '-' + index} cx={x(index)} cy={y(value)} r={selectedImpact === impactId ? '5' : '3.5'} fill={seriesIndex === 0 ? '#2BB3CB' : seriesIndex === 1 ? '#E2AE48' : '#4DBF98'} stroke="#0e3c48" strokeWidth="1.5" />; }))}
       </svg>
       <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[10px] text-earth-400"><span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-water-500" /> Eau économisée</span><span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-sun-500" /> Autonomie énergie</span><span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-brand-500" /> Impact réel</span><span className="flex items-center gap-1.5"><span className="h-0.5 w-5 border-t-2 border-dashed border-alert-500" /> Impact prévu</span></div>
     </div>
@@ -612,6 +623,7 @@ export default function AnalyticsPage() {
   const [selectedZone, setSelectedZone] = useState('all');
   const [horizon, setHorizon] = useState(7);
   const [liveTick, setLiveTick] = useState(0);
+  const [selectedImpact, setSelectedImpact] = useState('water');
 
   useEffect(() => {
     const timer = window.setInterval(() => setLiveTick((value) => value + 1), 5000);
@@ -667,7 +679,8 @@ export default function AnalyticsPage() {
             <div className="flex flex-wrap gap-1.5">{[7, 14, 30].map((value) => <button key={value} onClick={() => setHorizon(value)} className={cn('rounded-lg px-2.5 py-1.5 text-[10px] font-bold', horizon === value ? 'bg-accent text-on-accent' : 'text-earth-400 hover:bg-surface')}>{value} jours</button>)}</div>
             <select value={selectedZone} onChange={(event) => setSelectedZone(event.target.value)} className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[10px] font-semibold text-ink outline-none"><option value="all">Toutes les zones</option>{farm.zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name.split(' - ')[0]}</option>)}</select>
           </div>
-          <CombinedPerformanceChart savedPct={savedPct} zones={farm.zones} selectedZone={selectedZone} horizon={horizon} liveTick={liveTick} />
+          <CombinedPerformanceChart savedPct={savedPct} zones={farm.zones} selectedZone={selectedZone} horizon={horizon} liveTick={liveTick} selectedImpact={selectedImpact} onSelectImpact={setSelectedImpact} />
+          <ImpactSolution impact={selectedImpact} savedPct={savedPct} totalEnergy={totalEnergy} criticalZones={farm.zones.filter((zone) => zone.status === 'critical').length} />
         </ChartCard>
 
         <AnalysisPackets selectedPacket={selectedPacket} setSelectedPacket={setSelectedPacket} farm={farm} totalWater={totalWater} totalEnergy={totalEnergy} totalYield={totalYield} baseline={baseline} />

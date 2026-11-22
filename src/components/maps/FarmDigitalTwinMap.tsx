@@ -24,6 +24,7 @@ import {
 import { useFarmStore } from '@/stores/useFarmStore';
 import { MapLayerMode, FarmZone, HealthStatus } from '@/types';
 import { cn, formatNumber } from '@/lib/utils';
+import { fetchZoneHistory, requestAgenticDecision, type ZoneHistory } from '@/lib/qatra/client';
 
 export function FarmDigitalTwinMap() {
   const {
@@ -466,8 +467,71 @@ export function FarmDigitalTwinMap() {
             <span>Détails Complets de la Parcelle</span>
             <ChevronRight className="h-3.5 w-3.5" />
           </Link>
+
+          <ZoneDecisionPanel farmId={farm.id} zone={selectedZone} />
         </div>
       </div>
     </div>
+  );
+}
+
+function ZoneDecisionPanel({ farmId, zone }: { farmId: string; zone: FarmZone }) {
+  const [history, setHistory] = useState<ZoneHistory | null>(null);
+  const [decision, setDecision] = useState<Awaited<ReturnType<typeof requestAgenticDecision>> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setDecision(null);
+    void fetchZoneHistory(farmId, zone.id).then((data) => { if (active) setHistory(data); }).catch(() => { if (active) setHistory(null); });
+    void requestAgenticDecision(zone).then((data) => { if (active) setDecision(data); }).catch(() => { if (active) setDecision(null); });
+    return () => { active = false; };
+  }, [farmId, zone]);
+
+  const refreshDecision = () => {
+    setLoading(true);
+    void requestAgenticDecision(zone).then(setDecision).finally(() => setLoading(false));
+  };
+  const lastImpact = history?.impacts[0];
+  const firstFinding = decision?.findings.find((finding) => finding.status === 'critical') ?? decision?.findings[0];
+
+  return (
+    <section className="rounded-xl border border-brand-500/25 bg-brand-500/5 p-3.5 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Dossier agentique de la parcelle</p>
+          <h4 className="mt-1 text-sm font-bold text-ink">Solutions et réaction du terrain</h4>
+        </div>
+        <Sparkles className="h-4 w-4 text-brand-400" />
+      </div>
+
+      {decision ? (
+        <div className="rounded-lg bg-surface/80 p-2.5">
+          <p className="text-[10px] font-semibold text-earth-500">Solution maintenant</p>
+          <p className="mt-1 text-[11px] font-bold text-ink">{firstFinding?.recommendation ?? decision.recommendation}</p>
+          <p className="mt-1 text-[10px] leading-4 text-earth-400">Pourquoi : {firstFinding?.observation ?? 'Les agents ont comparé les mesures de la parcelle et son contexte énergétique.'}</p>
+          {firstFinding?.checkpoints?.length ? <p className="mt-1 text-[10px] text-sun-400">Checkpoint : {firstFinding.checkpoints[0]}</p> : null}
+        </div>
+      ) : (
+        <p className="rounded-lg bg-surface/80 p-2.5 text-[10px] text-earth-400">Analyse agentique en cours…</p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg bg-surface/80 p-2.5">
+          <p className="text-[10px] text-earth-500">Réaction précédente</p>
+          <p className="mt-1 text-xs font-bold text-brand-400">{lastImpact ? `${lastImpact.observed} ${lastImpact.unit}` : 'Pas encore mesurée'}</p>
+          {lastImpact ? <p className="mt-0.5 text-[9px] text-earth-500">référence {lastImpact.baseline} {lastImpact.unit}</p> : null}
+        </div>
+        <div className="rounded-lg bg-surface/80 p-2.5">
+          <p className="text-[10px] text-earth-500">Historique</p>
+          <p className="mt-1 text-xs font-bold text-ink">{history?.decisions.length ?? 0} décision(s)</p>
+          <p className="mt-0.5 text-[9px] text-earth-500">source PostgreSQL</p>
+        </div>
+      </div>
+
+      <button onClick={refreshDecision} disabled={loading} className="w-full rounded-lg bg-accent px-3 py-2 text-[10px] font-bold text-on-accent hover:bg-accent-hover disabled:opacity-50">
+        {loading ? 'Nouvelle analyse…' : 'Recalculer avec l’environnement actuel'}
+      </button>
+    </section>
   );
 }

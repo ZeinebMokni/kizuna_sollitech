@@ -171,9 +171,9 @@ export default function IrrigationPage() {
         <div className="mx-auto max-w-[1500px] space-y-4">
           <header className="flex flex-col gap-3 border-b border-line pb-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-400"><GitBranch className="h-3.5 w-3.5" /> Système multi-agentique</p>
-              <h1 className="mt-1 text-xl font-black tracking-tight text-ink sm:text-2xl">Décisions d’irrigation explicables</h1>
-              <p className="mt-1 text-xs text-earth-400">Chaque agent observe son service, pose des checkpoints, cite ses sources et transmet sa décision à l’orchestrateur.</p>
+              <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-400"><Droplets className="h-3.5 w-3.5" /> Gestion de l’irrigation</p>
+              <h1 className="mt-1 text-xl font-black tracking-tight text-ink sm:text-2xl">Décisions et opérations</h1>
+              <p className="mt-1 text-xs text-earth-400">Priorités des zones, état des agents et actions disponibles.</p>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setAutoMode((current) => !current)} className={cn('inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold', autoMode ? 'bg-brand-500/15 text-brand-400' : 'bg-earth-800 text-earth-300')}><Activity className="h-3.5 w-3.5" /> {autoMode ? 'Mode automatique' : 'Mode manuel'}</button>
@@ -181,14 +181,14 @@ export default function IrrigationPage() {
             </div>
           </header>
 
-          <section className="grid grid-cols-2 divide-x divide-line overflow-hidden rounded-xl border border-line bg-surface sm:grid-cols-4">
+          {false && <section className="grid grid-cols-2 divide-x divide-line overflow-hidden rounded-xl border border-line bg-surface sm:grid-cols-4">
             <Summary label="Agents actifs" value={String(agents.length)} detail="décision coordonnée" icon={GitBranch} />
             <Summary label="Zones critiques" value={String(criticalZones.length)} detail="attention immédiate" icon={AlertTriangle} tone={criticalZones.length ? 'critical' : 'default'} />
             <Summary label="Cycles actifs" value={String(activeZones.length)} detail="opérations en cours" icon={Droplets} tone="water" />
             <Summary label="Sources utilisées" value={String(new Set(agents.flatMap((agent) => agent.sources)).size)} detail="données traçables" icon={CheckCircle2} />
-          </section>
+          </section>}
 
-          <section className="rounded-xl border border-line bg-surface p-4">
+          {false && <section className="rounded-xl border border-line bg-surface p-4">
             <div className="flex items-center justify-between border-b border-line pb-3">
               <div><h2 className="text-sm font-bold text-ink">Chaîne de décision</h2><p className="mt-0.5 text-[11px] text-earth-400">Les agents travaillent ensemble avant toute ouverture de vanne.</p></div>
               <span className="hidden items-center gap-1.5 text-[11px] text-earth-400 sm:flex"><Lightbulb className="h-3.5 w-3.5 text-sun-400" /> checkpoints obligatoires</span>
@@ -196,11 +196,13 @@ export default function IrrigationPage() {
             <div className="mt-3 grid gap-2 md:grid-cols-5">
               {agents.map((agent, index) => <AgentLink key={agent.id} agent={agent} index={index} />)}
             </div>
-          </section>
+          </section>}
 
-          <section className="grid gap-4 xl:grid-cols-2">
+          <AgentDecisionTable agents={agents} />
+
+          {false && <section className="grid gap-4 xl:grid-cols-2">
             {agents.map((agent) => <AgentCard key={agent.id} agent={agent} />)}
-          </section>
+          </section>}
 
           <section className="overflow-hidden rounded-xl border border-line bg-surface">
             <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -228,6 +230,53 @@ function Summary({ label, value, detail, icon: Icon, tone = 'default' }: { label
 function AgentLink({ agent, index }: { agent: Agent; index: number }) {
   const Icon = agent.icon;
   return <div className="flex items-center gap-2 rounded-lg bg-raised px-2.5 py-2"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-water-500/10 text-water-400"><Icon className="h-3.5 w-3.5" /></span><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-ink">{index + 1}. {agent.name.replace('Agent ', '')}</p><p className="truncate text-[9px] text-earth-500">{STATUS_LABEL[agent.status]}</p></div>{index < 4 && <ChevronRight className="ml-auto hidden h-3 w-3 shrink-0 text-earth-500 md:block" />}</div>;
+}
+
+function AgentDecisionTable({ agents }: { agents: Agent[] }) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-line bg-surface">
+      <div className="border-b border-line px-4 py-3">
+        <h2 className="text-sm font-bold text-ink">Décisions d’irrigation · vue unique</h2>
+        <p className="mt-0.5 text-[11px] text-earth-400">Chaque agent parle dans le même tableau, avec sa priorité, ses preuves et son action.</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1050px] text-left text-[10px]">
+          <thead className="border-b border-line bg-raised text-earth-500">
+            <tr>
+              <th className="px-3 py-2.5">Agent / priorité</th>
+              <th className="px-3 py-2.5">Service</th>
+              <th className="px-3 py-2.5">État</th>
+              <th className="px-3 py-2.5">Données observées</th>
+              <th className="px-3 py-2.5">Décision & solution</th>
+              <th className="px-3 py-2.5">Checkpoint</th>
+              <th className="px-3 py-2.5">Sources</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {agents.map((agent, index) => {
+              const Icon = agent.icon;
+              return (
+              <tr key={agent.id} className={cn('align-top transition-colors hover:bg-raised/70', agent.status === 'critical' && 'bg-alert-500/5')}>
+                <td className="px-3 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg', agent.status === 'critical' ? 'bg-alert-500/10 text-alert-400' : agent.status === 'warning' ? 'bg-sun-500/10 text-sun-400' : 'bg-water-500/10 text-water-400')}><Icon className="h-3.5 w-3.5" /></span>
+                    <div><p className="font-bold text-ink">{index + 1}. {agent.name.replace('Agent ', '')}</p><p className="mt-0.5 text-[9px] text-earth-500">priorité {agent.status === 'critical' ? '1' : agent.status === 'warning' ? '2' : '3'}</p></div>
+                  </div>
+                </td>
+                <td className="px-3 py-3 text-earth-300">{agent.role}<p className="mt-1 text-[9px] text-earth-500">{agent.focus}</p></td>
+                <td className="px-3 py-3"><span className={cn('rounded-full px-2 py-1 font-semibold', STATUS_CLASS[agent.status])}>{STATUS_LABEL[agent.status]}</span></td>
+                <td className="px-3 py-3 text-earth-300"><ul className="space-y-1">{agent.data.map((item) => <li key={item}>• {item}</li>)}</ul></td>
+                <td className="max-w-[220px] px-3 py-3 text-earth-300"><p className="font-semibold text-ink">{agent.decision}</p><p className="mt-1">{agent.solution}</p></td>
+                <td className="px-3 py-3 text-earth-300"><ul className="space-y-1">{agent.checkpoints.map((item) => <li key={item}>✓ {item}</li>)}</ul></td>
+                <td className="px-3 py-3 text-brand-400"><div className="flex max-w-[160px] flex-wrap gap-1">{agent.sources.map((source) => <span key={source} className="rounded bg-brand-500/10 px-1.5 py-1 text-[9px]">{source}</span>)}</div></td>
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 function AgentCard({ agent }: { agent: Agent }) {

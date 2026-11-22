@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Activity,
   ArrowDown,
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { DEMO_DEVICES, DEMO_ENERGY_TELEMETRY } from '@/lib/mockData';
+import { fetchAlerts, fetchDevices } from '@/lib/qatra/client';
 import { useFarmStore } from '@/stores/useFarmStore';
 import { cn, formatNumber } from '@/lib/utils';
 
@@ -48,9 +49,20 @@ const DOMAIN_STYLE = {
 
 export default function NotificationsPage() {
   const { farm } = useFarmStore();
+  const [liveAlertCount, setLiveAlertCount] = useState(0);
+  const [liveDeviceCount, setLiveDeviceCount] = useState(0);
   const [reviewedIds, setReviewedIds] = useState<string[]>([]);
   const criticalZones = farm.zones.filter((zone) => zone.status === 'critical').length;
-  const onlineDevices = DEMO_DEVICES.filter((device) => device.status === 'online').length;
+  const onlineDevices = liveDeviceCount || DEMO_DEVICES.filter((device) => device.status === 'online').length;
+
+  useEffect(() => {
+    void Promise.all([fetchAlerts(farm.id), fetchDevices(farm.id)]).then(([alerts, devices]) => {
+      setLiveAlertCount(alerts.filter((alert) => alert.status === 'open').length);
+      setLiveDeviceCount(devices.filter((device) => device.status === 'online').length);
+    }).catch(() => {
+      // The UI retains its safe demo presentation when the API is unavailable.
+    });
+  }, [farm.id]);
   const proposals: Proposal[] = [
     { id: 'water', title: 'Réduire l’eau sur les zones stables', domain: 'Eau', icon: Droplets, status: criticalZones ? 'À vérifier' : 'En test', prediction: 'Éviter un cycle sur les zones au-dessus du seuil.', checkpoint: 'Comparer humidité avant/après pendant 24 h.', sources: ['Sondes sol ESP32', 'Historique irrigation', 'Seuils par culture'], impact: 'Litres économisés sans baisse de rendement', tone: 'water' },
     { id: 'energy', title: 'Déplacer le pompage vers la fenêtre solaire', domain: 'Énergie', icon: Sun, status: 'En test', prediction: 'Couvrir la pompe avec ' + formatNumber(DEMO_ENERGY_TELEMETRY.solarProductionKw, 1) + ' kW solaires disponibles.', checkpoint: 'Vérifier production, demande pompe et batterie.', sources: ['Onduleur PV', 'BMS batterie', 'Compteur pompe'], impact: 'kWh réseau évités et coût énergétique', tone: 'energy' },
@@ -79,7 +91,7 @@ export default function NotificationsPage() {
             <Summary icon={Eye} label="Observations" value={String(farm.zones.length + onlineDevices)} detail="signaux suivis" />
             <Summary icon={FlaskConical} label="Pistes du jour" value={String(proposals.length)} detail="solutions à vérifier" />
             <Summary icon={ClipboardCheck} label="Validées" value={String(reviewedIds.length)} detail="revue humaine" tone="success" />
-            <Summary icon={LockKeyhole} label="Garde-fous" value="Actifs" detail="politique & impact" tone="warning" />
+            <Summary icon={LockKeyhole} label="Garde-fous" value={liveAlertCount ? String(liveAlertCount) : "Actifs"} detail={liveAlertCount ? "alertes ouvertes" : "politique & impact"} tone="warning" />
           </section>
 
           <section className="rounded-xl border border-line bg-surface p-4">

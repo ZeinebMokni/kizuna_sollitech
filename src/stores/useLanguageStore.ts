@@ -25,7 +25,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.planning': 'Planification prédictive',
     'nav.analytics': 'Rapports & historique',
     'nav.marketplace': 'Place de marché agricole',
-    'nav.my_listings': 'Mes récoltes en vente',
+    'nav.my_listings': 'Consommations estimées',
     'nav.notifications': 'Prochaines étapes',
     'nav.settings': 'Paramètres',
     'nav.logout': 'Déconnexion',
